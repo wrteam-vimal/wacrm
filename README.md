@@ -1,6 +1,6 @@
-# wacrm — CRM Template for WhatsApp
+# wacrm — WRTeam Whatsapp CRM
 
-> Self-hostable CRM template for WhatsApp® — shared inbox, contacts,
+> Self-hostable WRTeam Whatsapp CRM® — shared inbox, contacts,
 > sales pipelines, broadcasts, and no-code automations. Fork it, brand
 > it, host it.
 
