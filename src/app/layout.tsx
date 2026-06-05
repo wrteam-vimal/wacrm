@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
-import Script from "next/script";
 import { Toaster } from "sonner";
 import "./globals.css";
 import { ThemeProvider } from "@/hooks/use-theme";
@@ -267,14 +266,15 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <head>
-        <Script
+        {/* Plain script tag runs before hydration — Next.js Script with
+            dangerouslySetInnerHTML is not supported in the App Router. */}
+        <script
           id="theme-boot"
-          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: getThemeBootScript(dbTheme, dbCustomColor, dbFaviconUrl) }}
         />
-        {/* Inject custom header script from settings */}
+        {/* Inject custom header HTML from SEO settings */}
         {customHeaderHtml && (
-          <meta dangerouslySetInnerHTML={{ __html: customHeaderHtml }} />
+          <div dangerouslySetInnerHTML={{ __html: customHeaderHtml }} />
         )}
       </head>
       <body className="min-h-full bg-background text-foreground font-sans" suppressHydrationWarning>

@@ -37,6 +37,8 @@ interface ThemeContextValue {
   setLoaderType: (type: "shimmer" | "custom") => void;
   loaderImageUrl: string | null;
   setLoaderImageUrl: (url: string | null) => void;
+  storageMode: "local" | "supabase";
+  setStorageMode: (mode: "local" | "supabase") => void;
   persistSettings: (settings: {
     theme: ThemeId;
     customColor: string;
@@ -47,6 +49,7 @@ interface ThemeContextValue {
     faviconUrl: string | null;
     loaderType: "shimmer" | "custom";
     loaderImageUrl: string | null;
+    storageMode: "local" | "supabase";
   }) => Promise<void>;
 }
 
@@ -95,6 +98,7 @@ interface InitialThemeSettings {
   favicon_url?: string;
   loader_type?: string;
   loader_image_url?: string;
+  storage_mode?: string;
 }
 
 export function ThemeProvider({
@@ -136,6 +140,13 @@ export function ThemeProvider({
   const [loaderImageUrl, setLoaderImageUrlState] = useState<string | null>(() =>
     getPublicStorageUrl(initialSettings?.loader_image_url || null)
   );
+  const [storageMode, setStorageModeState] = useState<"local" | "supabase">(
+    (initialSettings?.storage_mode as "local" | "supabase") || "local"
+  );
+
+  const setStorageMode = useCallback((mode: "local" | "supabase") => {
+    setStorageModeState(mode);
+  }, []);
 
   // Helper to save setting to the database (upsert by account_id)
   const saveSetting = useCallback(async (updates: any) => {
@@ -211,6 +222,7 @@ export function ThemeProvider({
           setFaviconUrlState(getPublicStorageUrl(appSettings.favicon_url));
           setLoaderTypeState((appSettings.loader_type as "shimmer" | "custom") || "shimmer");
           setLoaderImageUrlState(getPublicStorageUrl(appSettings.loader_image_url));
+          setStorageModeState((appSettings.storage_mode as "local" | "supabase") || "local");
 
           if (typeof document !== "undefined") {
             document.documentElement.dataset.theme = appSettings.theme || DEFAULT_THEME;
@@ -331,10 +343,9 @@ export function ThemeProvider({
     faviconUrl: string | null;
     loaderType: "shimmer" | "custom";
     loaderImageUrl: string | null;
+    storageMode: "local" | "supabase";
   }) => {
     try {
-      // Use the server-side API route so the authenticated cookie session is
-      // present — this ensures Supabase RLS can resolve auth.uid() correctly.
       const res = await fetch("/api/appearance/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -356,6 +367,7 @@ export function ThemeProvider({
       setFaviconUrlState(settings.faviconUrl);
       setLoaderTypeState(settings.loaderType);
       setLoaderImageUrlState(settings.loaderImageUrl);
+      setStorageModeState(settings.storageMode);
 
       if (typeof document !== "undefined") {
         document.documentElement.dataset.theme = settings.theme;
@@ -399,6 +411,8 @@ export function ThemeProvider({
         setLoaderType,
         loaderImageUrl,
         setLoaderImageUrl,
+        storageMode,
+        setStorageMode,
         persistSettings,
       }}
     >
@@ -429,6 +443,8 @@ export function useTheme(): ThemeContextValue {
       setLoaderType: () => { },
       loaderImageUrl: null,
       setLoaderImageUrl: () => { },
+      storageMode: "local",
+      setStorageMode: () => { },
       persistSettings: async () => { },
     };
   }

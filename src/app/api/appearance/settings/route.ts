@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getRelativeStoragePath } from "@/lib/themes";
 
+// Force Node.js runtime so cookies() and server-side Supabase client work correctly.
+export const runtime = "nodejs";
+
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient();
@@ -42,6 +46,7 @@ export async function POST(req: NextRequest) {
       favicon_url: getRelativeStoragePath(body.faviconUrl),
       loader_type: body.loaderType,
       loader_image_url: getRelativeStoragePath(body.loaderImageUrl),
+      storage_mode: body.storageMode === "supabase" ? "supabase" : "local",
       updated_at: new Date().toISOString(),
     };
 

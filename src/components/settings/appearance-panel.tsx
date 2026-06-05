@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { MessageSquare, AlertTriangle, Copy, Check, Trash2, RefreshCw, Loader2 } from "lucide-react";
+import { MessageSquare, AlertTriangle, Copy, Check, Trash2, RefreshCw, Loader2, Database, HardDrive } from "lucide-react";
 import { toast } from "sonner";
 
 import { useTheme } from "@/hooks/use-theme";
@@ -27,10 +27,16 @@ CREATE TABLE IF NOT EXISTS appearance_settings (
   favicon_url TEXT,
   loader_type TEXT NOT NULL DEFAULT 'shimmer',
   loader_image_url TEXT,
+  storage_mode TEXT NOT NULL DEFAULT 'local' CHECK (storage_mode IN ('local', 'supabase')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT appearance_settings_account_id_key UNIQUE (account_id)
 );
+
+-- If the table already exists, add the new column:
+ALTER TABLE appearance_settings
+  ADD COLUMN IF NOT EXISTS storage_mode TEXT NOT NULL DEFAULT 'local'
+  CHECK (storage_mode IN ('local', 'supabase'));
 
 ALTER TABLE appearance_settings ENABLE ROW LEVEL SECURITY;
 
@@ -76,6 +82,7 @@ export function AppearancePanel() {
     faviconUrl,
     loaderType,
     loaderImageUrl,
+    storageMode,
     persistSettings,
   } = useTheme();
 
@@ -89,6 +96,7 @@ export function AppearancePanel() {
   const [tempFaviconUrl, setTempFaviconUrl] = useState<string | null>(faviconUrl);
   const [tempLoaderType, setTempLoaderType] = useState<"shimmer" | "custom">(loaderType);
   const [tempLoaderImageUrl, setTempLoaderImageUrl] = useState<string | null>(loaderImageUrl);
+  const [tempStorageMode, setTempStorageMode] = useState<"local" | "supabase">(storageMode);
   const [saving, setSaving] = useState(false);
 
   // Synchronize local states with global context when settings load
@@ -102,7 +110,8 @@ export function AppearancePanel() {
     setTempFaviconUrl(faviconUrl);
     setTempLoaderType(loaderType);
     setTempLoaderImageUrl(loaderImageUrl);
-  }, [theme, customColor, showLogo, showTitle, titleText, logoUrl, faviconUrl, loaderType, loaderImageUrl]);
+    setTempStorageMode(storageMode);
+  }, [theme, customColor, showLogo, showTitle, titleText, logoUrl, faviconUrl, loaderType, loaderImageUrl, storageMode]);
 
   const logoInputRef = useRef<HTMLInputElement>(null);
   const faviconInputRef = useRef<HTMLInputElement>(null);
@@ -214,6 +223,12 @@ export function AppearancePanel() {
       return;
     }
 
+    // Capture old URL before overwriting — used by API for cleanup.
+    const oldUrl =
+      type === "logo" ? tempLogoUrl
+      : type === "favicon" ? tempFaviconUrl
+      : tempLoaderImageUrl;
+
     if (type === "logo") setUploadingLogo(true);
     else if (type === "favicon") setUploadingFavicon(true);
     else setUploadingLoader(true);
@@ -222,6 +237,8 @@ export function AppearancePanel() {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("type", type);
+      formData.append("storageMode", tempStorageMode);
+      if (oldUrl) formData.append("oldUrl", oldUrl);
 
       const res = await fetch("/api/appearance/upload", {
         method: "POST",
@@ -236,13 +253,13 @@ export function AppearancePanel() {
 
       if (type === "logo") {
         setTempLogoUrl(urlWithBust);
-        toast.success("Logo uploaded successfully");
+        toast.success("Logo uploaded — old image removed");
       } else if (type === "favicon") {
         setTempFaviconUrl(urlWithBust);
-        toast.success("Favicon uploaded successfully");
+        toast.success("Favicon uploaded — old image removed");
       } else {
         setTempLoaderImageUrl(urlWithBust);
-        toast.success("Loader graphic uploaded successfully");
+        toast.success("Loader graphic uploaded — old image removed");
       }
     } catch (err: any) {
       toast.error("Upload failed", {
@@ -297,6 +314,7 @@ export function AppearancePanel() {
         faviconUrl: tempFaviconUrl,
         loaderType: tempLoaderType,
         loaderImageUrl: tempLoaderImageUrl,
+        storageMode: tempStorageMode,
       });
       toast.success("Appearance settings saved successfully");
     } catch (err) {
@@ -474,7 +492,10 @@ export function AppearancePanel() {
                         </Button>
                       )}
                     </div>
-                    <span className="text-[10px] text-slate-500 truncate">PNG, JPG, SVG or WEBP. Saved in Supabase Storage.</span>
+                    <span className="text-[10px] text-slate-500 truncate">
+                      PNG, JPG, SVG or WEBP.
+                      {tempStorageMode === "supabase" ? " Saved in Supabase Storage (avatars bucket)." : " Saved in public/assets/ on the server."}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -580,7 +601,10 @@ export function AppearancePanel() {
                 </Button>
               )}
             </div>
-            <span className="text-[10px] text-slate-500 truncate">ICO, PNG or SVG. Saved in Supabase Storage.</span>
+            <span className="text-[10px] text-slate-500 truncate">
+              ICO, PNG or SVG.
+              {tempStorageMode === "supabase" ? " Saved in Supabase Storage (avatars bucket)." : " Saved in public/assets/ on the server."}
+            </span>
           </div>
         </div>
       </section>
@@ -671,11 +695,93 @@ export function AppearancePanel() {
                     )}
                   </div>
                   <span className="text-[10px] text-slate-500 truncate">
-                    SVG, PNG, GIF or JPG. Saved in Supabase Storage.
+                    SVG, PNG, GIF or JPG.
+                    {tempStorageMode === "supabase" ? " Saved in Supabase Storage (avatars bucket)." : " Saved in public/assets/ on the server."}
                   </span>
                 </div>
               </div>
             </div>
+          )}
+        </div>
+      </section>
+
+      {/* Storage Configuration */}
+      <section className="rounded-lg border border-slate-800 bg-slate-900/40 p-5 space-y-4">
+        <div>
+          <h3 className="text-md font-semibold text-white flex items-center gap-2">
+            <Database className="size-4 text-primary" />
+            Storage Configuration
+          </h3>
+          <p className="mt-1 text-sm text-slate-400">
+            Choose where uploaded images (logo, favicon, loader) are stored. This setting is saved with your appearance preferences.
+          </p>
+        </div>
+
+        <div className="pt-2 border-t border-slate-800">
+          <RadioGroup
+            value={tempStorageMode}
+            onValueChange={(val) => {
+              if (!canEditSettings) return;
+              setTempStorageMode(val as "local" | "supabase");
+            }}
+            className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+          >
+            {/* Local option */}
+            <label
+              htmlFor="storage-local"
+              className={`flex items-start gap-3 rounded-lg border p-4 cursor-pointer transition-colors ${
+                tempStorageMode === "local"
+                  ? "border-primary/60 bg-primary/5"
+                  : "border-slate-800 hover:border-slate-700"
+              } ${!canEditSettings ? "pointer-events-none opacity-60" : ""}`}
+            >
+              <RadioGroupItem value="local" id="storage-local" className="mt-0.5 shrink-0" />
+              <div>
+                <span className="flex items-center gap-1.5 text-sm font-medium text-white">
+                  <HardDrive className="size-4 text-slate-400" />
+                  Local Storage
+                </span>
+                <span className="mt-1 block text-xs text-slate-400">
+                  Files saved to <code className="font-mono bg-slate-800 px-1 rounded">public/assets/</code> on the server.
+                  Best for self-hosted deployments. <strong className="text-amber-400">Does not work on Vercel.</strong>
+                </span>
+              </div>
+            </label>
+
+            {/* Supabase option */}
+            <label
+              htmlFor="storage-supabase"
+              className={`flex items-start gap-3 rounded-lg border p-4 cursor-pointer transition-colors ${
+                tempStorageMode === "supabase"
+                  ? "border-primary/60 bg-primary/5"
+                  : "border-slate-800 hover:border-slate-700"
+              } ${!canEditSettings ? "pointer-events-none opacity-60" : ""}`}
+            >
+              <RadioGroupItem value="supabase" id="storage-supabase" className="mt-0.5 shrink-0" />
+              <div>
+                <span className="flex items-center gap-1.5 text-sm font-medium text-white">
+                  <Database className="size-4 text-slate-400" />
+                  Supabase Storage
+                </span>
+                <span className="mt-1 block text-xs text-slate-400">
+                  Files uploaded to the Supabase <code className="font-mono bg-slate-800 px-1 rounded">avatars</code> bucket.
+                  Works everywhere including Vercel. Old images are deleted automatically on replace.
+                </span>
+              </div>
+            </label>
+          </RadioGroup>
+
+          {tempStorageMode === "supabase" && (
+            <p className="mt-3 text-xs text-slate-500 flex items-start gap-1.5">
+              <Database className="size-3 shrink-0 mt-0.5" />
+              Each image slot uses a fixed, stable path in the bucket — uploading a new image removes the old one automatically.
+            </p>
+          )}
+          {tempStorageMode === "local" && (
+            <p className="mt-3 text-xs text-slate-500 flex items-start gap-1.5">
+              <HardDrive className="size-3 shrink-0 mt-0.5" />
+              Images are stored as fixed filenames — new uploads overwrite the old file in-place.
+            </p>
           )}
         </div>
       </section>
