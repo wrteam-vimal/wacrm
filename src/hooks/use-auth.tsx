@@ -7,6 +7,7 @@ import {
   useState,
   useCallback,
   useMemo,
+  useRef,
   type ReactNode,
 } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -113,10 +114,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // window they're in — see the type doc above.
   const [profileLoading, setProfileLoading] = useState(true);
 
+  const lastFetchedUserIdRef = useRef<string | null>(null);
+
   // Shared across init, auth-state-change listener, and the exposed
   // refreshProfile() callback. Reads the current session's user id and
   // pulls the matching profile row along with its account summary.
-  const fetchProfile = useCallback(async (userId: string) => {
+  const fetchProfile = useCallback(async (userId: string, force = false) => {
+    if (!force && lastFetchedUserIdRef.current === userId) return;
+    lastFetchedUserIdRef.current = userId;
+
     const supabase = createClient();
     setProfileLoading(true);
     try {
@@ -244,6 +250,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(null);
         setAccount(null);
         setProfileLoading(false);
+        lastFetchedUserIdRef.current = null;
       }
 
       setLoading(false);
@@ -262,12 +269,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setProfile(null);
     setAccount(null);
+    lastFetchedUserIdRef.current = null;
     window.location.href = "/login";
   }, []);
 
   const refreshProfile = useCallback(async () => {
     if (!user?.id) return;
-    await fetchProfile(user.id);
+    await fetchProfile(user.id, true);
   }, [user?.id, fetchProfile]);
 
   // Derive the role booleans once per profile change rather than on

@@ -21,6 +21,7 @@ import {
 import { useCan } from "@/hooks/use-can";
 import { Button } from "@/components/ui/button";
 import { GatedButton } from "@/components/ui/gated-button";
+import { PageLoader } from "@/components/ui/page-loader";
 import {
   Dialog,
   DialogContent,
@@ -193,8 +194,8 @@ export default function FlowsPage() {
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-slate-500" />
+      <div className="p-6">
+        <PageLoader type="flows" />
       </div>
     );
   }

@@ -8,6 +8,7 @@ import {
   DollarSign,
   Send,
 } from 'lucide-react'
+import { PageLoader } from '@/components/ui/page-loader'
 
 import {
   loadActivity,
@@ -114,6 +115,14 @@ export default function DashboardPage() {
     },
     [series],
   )
+
+  const isInitLoading = metricsLoading && seriesLoading && pipelineLoading && responseTimeLoading && activityLoading;
+
+  if (isInitLoading) {
+    return (
+      <PageLoader type="dashboard" />
+    );
+  }
 
   return (
     <div className="space-y-5">

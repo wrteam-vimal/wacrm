@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { useTheme } from "@/hooks/use-theme";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,6 +31,7 @@ export default function LoginPage() {
 }
 
 function LoginPageInner() {
+  const { logoUrl, showLogo, titleText } = useTheme();
   const searchParams = useSearchParams();
   // Forwarded from `/join/<token>` when the visitor already has an
   // account. After a successful sign-in we send them to the join
@@ -67,95 +69,98 @@ function LoginPageInner() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4">
-      <Card className="w-full max-w-md border-slate-800 bg-slate-900">
-        <CardHeader className="items-center text-center">
-          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-            {inviteToken ? (
-              <UsersRound className="h-6 w-6 text-primary" />
+    <Card className="w-full border-slate-800/80 bg-slate-900/40 backdrop-blur-xl shadow-2xl">
+      <CardHeader className="items-center text-center pb-2">
+        {showLogo && (
+          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-slate-800/80 p-2 border border-slate-700/60 shadow-inner">
+            {logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logoUrl} alt={titleText} className="h-10 w-10 object-contain" />
+            ) : inviteToken ? (
+              <UsersRound className="h-7 w-7 text-primary" />
             ) : (
-              <MessageSquare className="h-6 w-6 text-primary" />
+              <MessageSquare className="h-7 w-7 text-primary" />
             )}
           </div>
-          <CardTitle className="text-xl text-white">
-            {inviteToken ? "Sign in to accept" : "Welcome back"}
-          </CardTitle>
-          <CardDescription className="text-slate-400">
-            {inviteToken
-              ? "Sign in and we'll take you to the invitation."
-              : "Sign in to your account"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleLogin} className="flex flex-col gap-4">
-            {error && (
-              <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-                {error}
-              </div>
-            )}
+        )}
+        <CardTitle className="text-xl text-white tracking-tight">
+          {inviteToken ? "Sign in to accept" : "Welcome back"}
+        </CardTitle>
+        <CardDescription className="text-slate-400 text-xs mt-1">
+          {inviteToken
+            ? "Sign in and we'll take you to the invitation."
+            : "Sign in to your account"}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleLogin} className="flex flex-col gap-4">
+          {error && (
+            <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400 transition-all duration-300">
+              {error}
+            </div>
+          )}
 
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="email" className="text-slate-300">
-                Email
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="email" className="text-slate-300 text-xs font-medium">
+              Email
+            </Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="border-slate-700/80 bg-slate-950/60 text-white placeholder:text-slate-500 focus-visible:border-primary focus-visible:ring-primary/20 h-10 transition-colors"
+            />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password" className="text-slate-300 text-xs font-medium">
+                Password
               </Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 focus-visible:border-primary focus-visible:ring-primary/20"
-              />
+              <Link
+                href="/forgot-password"
+                className="text-xs text-primary hover:text-primary/80 transition-colors"
+              >
+                Forgot password?
+              </Link>
             </div>
+            <Input
+              id="password"
+              type="password"
+              placeholder="Enter your password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="border-slate-700/80 bg-slate-950/60 text-white placeholder:text-slate-500 focus-visible:border-primary focus-visible:ring-primary/20 h-10 transition-colors"
+            />
+          </div>
 
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-slate-300">
-                  Password
-                </Label>
-                <Link
-                  href="/forgot-password"
-                  className="text-sm text-primary hover:text-primary/80"
-                >
-                  Forgot password?
-                </Link>
-              </div>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 focus-visible:border-primary focus-visible:ring-primary/20"
-              />
-            </div>
+          <Button
+            type="submit"
+            disabled={loading}
+            className="mt-2 h-10 w-full bg-primary text-primary-foreground hover:bg-primary-hover active:scale-[0.99] transition-all font-medium shadow-md shadow-primary/10"
+          >
+            {loading ? "Signing in..." : "Sign in"}
+          </Button>
+        </form>
 
-            <Button
-              type="submit"
-              disabled={loading}
-              className="mt-2 h-10 w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-            >
-              {loading ? "Signing in..." : "Sign in"}
-            </Button>
-          </form>
-
-          <p className="mt-6 text-center text-sm text-slate-400">
-            Don&apos;t have an account?{" "}
-            <Link
-              href={
-                inviteToken
-                  ? `/signup?invite=${encodeURIComponent(inviteToken)}`
-                  : "/signup"
-              }
-              className="text-primary hover:text-primary/80"
-            >
-              Create account
-            </Link>
-          </p>
-        </CardContent>
-      </Card>
-    </div>
+        <p className="mt-6 text-center text-xs text-slate-400">
+          Don&apos;t have an account?{" "}
+          <Link
+            href={
+              inviteToken
+                ? `/signup?invite=${encodeURIComponent(inviteToken)}`
+                : "/signup"
+            }
+            className="text-primary hover:text-primary/80 font-medium transition-colors"
+          >
+            Create account
+          </Link>
+        </p>
+      </CardContent>
+    </Card>
   );
 }

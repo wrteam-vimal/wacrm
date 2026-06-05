@@ -18,7 +18,7 @@ VALUES (
   'avatars',
   TRUE,
   2097152, -- 2 MB
-  ARRAY['image/png', 'image/jpeg', 'image/webp', 'image/gif']
+  ARRAY['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/svg+xml', 'image/x-icon', 'image/vnd.microsoft.icon']
 )
 ON CONFLICT (id) DO UPDATE
 SET

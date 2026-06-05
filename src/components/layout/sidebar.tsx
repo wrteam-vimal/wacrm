@@ -2,11 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
+import { useTheme } from "@/hooks/use-theme";
 import {
+  ChevronDown,
+  ChevronRight,
   Crown,
   GitBranch,
   LayoutDashboard,
@@ -97,7 +100,7 @@ const navItems: NavItem[] = [
 ];
 
 const bottomNavItems = [
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/settings/profile", label: "Settings", icon: Settings },
 ];
 
 interface SidebarProps {
@@ -114,6 +117,27 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { profile, profileLoading, account, accountRole, signOut } = useAuth();
   const totalUnread = useTotalUnread();
+  const { showLogo, showTitle, logoUrl, titleText } = useTheme();
+
+  const [settingsExpanded, setSettingsExpanded] = useState(() =>
+    pathname.startsWith("/settings")
+  );
+
+  // Sync state when pathname transitions to /settings
+  useEffect(() => {
+    if (pathname.startsWith("/settings")) {
+      setSettingsExpanded(true);
+    }
+  }, [pathname]);
+
+  const handleSettingsClick = (e: React.MouseEvent) => {
+    if (pathname.startsWith("/settings")) {
+      e.preventDefault();
+      setSettingsExpanded(!settingsExpanded);
+    } else {
+      setSettingsExpanded(true);
+    }
+  };
   // Match the settings page's check: only treat the flag as enabled
   // once the profile has finished loading. Without this, the strip
   // would briefly flash absent during the initial profile fetch
@@ -179,14 +203,29 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         {/* Logo row. On mobile we put a close button here; on desktop the
             close button is hidden since the sidebar is always-visible. */}
         <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-slate-800 px-4">
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <MessageSquare className="h-4 w-4" />
-            </div>
-            <span className="text-sm font-semibold text-white">
-              WRTeam Whatsapp CRM
-            </span>
-          </Link>
+          {(showLogo || showTitle) && (
+            <Link href="/dashboard" className="flex items-center gap-2 min-w-0">
+              {showLogo && (
+                logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={logoUrl || undefined}
+                    alt="Logo"
+                    className="h-8 w-8 object-contain rounded-lg shrink-0"
+                  />
+                ) : (
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shrink-0">
+                    <MessageSquare className="h-4 w-4" />
+                  </div>
+                )
+              )}
+              {showTitle && (
+                <span className="truncate text-sm font-semibold text-white">
+                  {titleText}
+                </span>
+              )}
+            </Link>
+          )}
           <button
             type="button"
             onClick={onClose}
@@ -249,21 +288,124 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
 
           <ul className="flex flex-col gap-1">
             {bottomNavItems.map((item) => {
-              const isActive = pathname.startsWith(item.href);
+              const isSettingsActive = pathname.startsWith("/settings");
               return (
-                <li key={item.href}>
+                <li key={item.href} className="flex flex-col gap-1">
                   <Link
                     href={item.href}
+                    onClick={handleSettingsClick}
                     className={cn(
                       "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
-                      isActive
+                      isSettingsActive
                         ? "bg-primary/10 text-primary"
                         : "text-slate-400 hover:bg-slate-800 hover:text-white",
                     )}
                   >
                     <item.icon className="h-4 w-4" />
-                    {item.label}
+                    <span className="flex-1">{item.label}</span>
+                    {settingsExpanded ? (
+                      <ChevronDown className="h-4 w-4 text-slate-400" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-slate-400" />
+                    )}
                   </Link>
+                  {settingsExpanded && (
+                    <ul className="ml-7 mt-1 flex flex-col gap-1 border-l border-slate-800 pl-3">
+                      <li>
+                        <Link
+                          href="/settings/profile"
+                          className={cn(
+                            "block rounded-md py-1.5 px-2 text-xs font-medium transition-colors lg:py-1",
+                            pathname === "/settings/profile"
+                              ? "text-primary bg-primary/5"
+                              : "text-slate-400 hover:text-white hover:bg-slate-800/40"
+                          )}
+                        >
+                          Profile
+                        </Link>
+                      </li>
+                      <li>
+                        <Link
+                          href="/settings/whatsapp"
+                          className={cn(
+                            "block rounded-md py-1.5 px-2 text-xs font-medium transition-colors lg:py-1",
+                            pathname === "/settings/whatsapp"
+                              ? "text-primary bg-primary/5"
+                              : "text-slate-400 hover:text-white hover:bg-slate-800/40"
+                          )}
+                        >
+                          WhatsApp Config
+                        </Link>
+                      </li>
+                      <li>
+                        <Link
+                          href="/settings/templates"
+                          className={cn(
+                            "block rounded-md py-1.5 px-2 text-xs font-medium transition-colors lg:py-1",
+                            pathname === "/settings/templates"
+                              ? "text-primary bg-primary/5"
+                              : "text-slate-400 hover:text-white hover:bg-slate-800/40"
+                          )}
+                        >
+                          Templates
+                        </Link>
+                      </li>
+                      <li>
+                        <Link
+                          href="/settings/tags"
+                          className={cn(
+                            "block rounded-md py-1.5 px-2 text-xs font-medium transition-colors lg:py-1",
+                            pathname === "/settings/tags"
+                              ? "text-primary bg-primary/5"
+                              : "text-slate-400 hover:text-white hover:bg-slate-800/40"
+                          )}
+                        >
+                          Tags
+                        </Link>
+                      </li>
+                      <li>
+                        <Link
+                          href="/settings/appearance"
+                          className={cn(
+                            "block rounded-md py-1.5 px-2 text-xs font-medium transition-colors lg:py-1",
+                            pathname === "/settings/appearance"
+                              ? "text-primary bg-primary/5"
+                              : "text-slate-400 hover:text-white hover:bg-slate-800/40"
+                          )}
+                        >
+                          Appearance
+                        </Link>
+                      </li>
+                      <li>
+                        <Link
+                          href="/settings/seo"
+                          className={cn(
+                            "block rounded-md py-1.5 px-2 text-xs font-medium transition-colors lg:py-1",
+                            pathname === "/settings/seo"
+                              ? "text-primary bg-primary/5"
+                              : "text-slate-400 hover:text-white hover:bg-slate-800/40"
+                          )}
+                        >
+                          SEO
+                        </Link>
+                      </li>
+                      {accountSharingEnabled && (
+                        <li>
+                          <Link
+                            href="/settings/members"
+                            className={cn(
+                              "block rounded-md py-1.5 px-2 text-xs font-medium transition-colors lg:py-1",
+                              pathname === "/settings/members"
+                                ? "text-primary bg-primary/5"
+                                : "text-slate-400 hover:text-white hover:bg-slate-800/40"
+                            )}
+                          >
+                            Members
+                          </Link>
+                        </li>
+                      )}
+                    </ul>
+                  )}
                 </li>
               );
             })}
@@ -340,7 +482,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               <DropdownMenuItem
                 render={
                   <Link
-                    href="/settings?tab=profile"
+                    href="/settings/profile"
                     onClick={onClose}
                     className="text-slate-200 focus:bg-slate-800 focus:text-white"
                   />
@@ -352,7 +494,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               <DropdownMenuItem
                 render={
                   <Link
-                    href="/settings?tab=whatsapp"
+                    href="/settings/whatsapp"
                     onClick={onClose}
                     className="text-slate-200 focus:bg-slate-800 focus:text-white"
                   />

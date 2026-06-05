@@ -14,16 +14,12 @@
  */
 
 export const THEME_IDS = [
-  "violet",
-  "emerald",
-  "cobalt",
-  "amber",
-  "rose",
+  "default",
 ] as const;
 
-export type ThemeId = (typeof THEME_IDS)[number];
+export type ThemeId = (typeof THEME_IDS)[number] | "custom";
 
-export const DEFAULT_THEME: ThemeId = "violet";
+export const DEFAULT_THEME: ThemeId = "default";
 
 export const STORAGE_KEY = "wacrm.theme";
 
@@ -40,42 +36,37 @@ export interface ThemeMeta {
   swatch: string;
 }
 
-export const THEMES: ReadonlyArray<ThemeMeta> = [
-  {
-    id: "violet",
-    name: "Violet",
-    tagline: "The default — confident, slightly playful.",
-    swatch: "oklch(0.526 0.247 293)",
-  },
-  {
-    id: "emerald",
-    name: "Emerald",
-    tagline: "Growth-coded, nods at messaging without copying WhatsApp green.",
-    swatch: "oklch(0.62 0.16 162)",
-  },
-  {
-    id: "cobalt",
-    name: "Cobalt",
-    tagline: "Clean B2B-SaaS blue — calm and product-y.",
-    swatch: "oklch(0.585 0.2 254)",
-  },
-  {
-    id: "amber",
-    name: "Amber",
-    tagline: "Warm and friendly — feels good for SMB teams.",
-    swatch: "oklch(0.745 0.16 65)",
-  },
-  {
-    id: "rose",
-    name: "Rose",
-    tagline: "Bold and modern — D2C, creator-economy, lifestyle.",
-    swatch: "oklch(0.645 0.22 16)",
-  },
-];
+export const THEMES: ReadonlyArray<ThemeMeta> = [];
 
 export function isThemeId(value: unknown): value is ThemeId {
   return (
     typeof value === "string" &&
-    (THEME_IDS as ReadonlyArray<string>).includes(value)
+    ((THEME_IDS as ReadonlyArray<string>).includes(value) || value === "custom")
   );
+}
+
+export function getPublicStorageUrl(path: string | null): string | null {
+  if (!path) return null;
+  if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("data:")) {
+    return path;
+  }
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const baseUrl = supabaseUrl.endsWith("/") ? supabaseUrl.slice(0, -1) : supabaseUrl;
+  return `${baseUrl}/storage/v1/object/public/avatars/${path}`;
+}
+
+export function getRelativeStoragePath(urlOrPath: string | null): string | null {
+  if (!urlOrPath) return null;
+  const cleanUrl = urlOrPath.split("?")[0];
+  if (!cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) {
+    return cleanUrl;
+  }
+  try {
+    const url = new URL(cleanUrl);
+    const parts = url.pathname.split("/public/avatars/");
+    if (parts.length > 1) {
+      return parts[1];
+    }
+  } catch {}
+  return cleanUrl;
 }
