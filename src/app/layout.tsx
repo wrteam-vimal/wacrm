@@ -265,19 +265,25 @@ export default async function RootLayout({
       className={`${inter.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <head>
-        {/* Plain script tag runs before hydration — Next.js Script with
-            dangerouslySetInnerHTML is not supported in the App Router. */}
+      {/* suppressHydrationWarning silences the inline <script> hydration warning —
+          the theme-boot script only needs to run once on initial SSR load, which is correct. */}
+      <head suppressHydrationWarning>
         <script
           id="theme-boot"
           dangerouslySetInnerHTML={{ __html: getThemeBootScript(dbTheme, dbCustomColor, dbFaviconUrl) }}
         />
-        {/* Inject custom header HTML from SEO settings */}
-        {customHeaderHtml && (
-          <div dangerouslySetInnerHTML={{ __html: customHeaderHtml }} />
-        )}
       </head>
       <body className="min-h-full bg-background text-foreground font-sans" suppressHydrationWarning>
+        {/* Custom header scripts from SEO settings injected at body start.
+            A <div> inside <head> is invalid HTML — placing at body top is correct
+            for analytics/tracking scripts and works with all major platforms. */}
+        {customHeaderHtml && (
+          <div
+            id="custom-header-scripts"
+            dangerouslySetInnerHTML={{ __html: customHeaderHtml }}
+            suppressHydrationWarning
+          />
+        )}
         <ThemeProvider initialSettings={appearanceData || undefined}>
           {children}
           <Toaster
