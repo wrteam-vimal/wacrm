@@ -333,54 +333,18 @@ export function ThemeProvider({
     loaderImageUrl: string | null;
   }) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Unauthenticated");
+      // Use the server-side API route so the authenticated cookie session is
+      // present — this ensures Supabase RLS can resolve auth.uid() correctly.
+      const res = await fetch("/api/appearance/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(settings),
+      });
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("account_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (!profile?.account_id) throw new Error("No organization account linked");
-
-      const { data: existing } = await supabase
-        .from("appearance_settings")
-        .select("id")
-        .eq("account_id", profile.account_id)
-        .maybeSingle();
-
-      const dbPayload = {
-        theme: settings.theme,
-        custom_color: settings.customColor,
-        show_logo: settings.showLogo,
-        show_title: settings.showTitle,
-        title_text: settings.titleText,
-        logo_url: getRelativeStoragePath(settings.logoUrl),
-        favicon_url: getRelativeStoragePath(settings.faviconUrl),
-        loader_type: settings.loaderType,
-        loader_image_url: getRelativeStoragePath(settings.loaderImageUrl),
-        updated_at: new Date().toISOString(),
-      };
-
-      let saveError;
-      if (existing) {
-        const { error } = await supabase
-          .from("appearance_settings")
-          .update(dbPayload)
-          .eq("id", existing.id);
-        saveError = error;
-      } else {
-        const { error } = await supabase
-          .from("appearance_settings")
-          .insert({
-            account_id: profile.account_id,
-            ...dbPayload,
-          });
-        saveError = error;
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to save settings");
       }
-
-      if (saveError) throw saveError;
 
       // Update client states
       setThemeState(settings.theme);
@@ -403,20 +367,16 @@ export function ThemeProvider({
 
         const link = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
         if (link) {
-          // For local assets the file is replaced in-place; append a timestamp
-          // only when a URL is available to bust any CDN/proxy caches.
           link.href = settings.faviconUrl
             ? `${settings.faviconUrl.split("?")[0]}?t=${Date.now()}`
             : "/icon";
         }
       }
-
-      // LocalStorage removed, database is the sole source of truth.
     } catch (err) {
       console.warn("Failed to save settings:", err);
       throw err;
     }
-  }, [supabase]);
+  }, [applyCustomColor, removeCustomColorStyles]);
 
   return (
     <ThemeContext.Provider
