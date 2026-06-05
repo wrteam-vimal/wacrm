@@ -35,6 +35,21 @@ const ALLOWED_MIME = new Set([
 // just want to stop obvious typos before making a network call.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** Extracts the storage object path from a Supabase public URL.
+ *  e.g. https://xxx.supabase.co/storage/v1/object/public/avatars/uid/avatar.png
+ *  → "uid/avatar.png"
+ */
+function extractStoragePath(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const clean = url.split('?')[0];
+    const marker = '/public/avatars/';
+    const idx = clean.indexOf(marker);
+    if (idx !== -1) return clean.slice(idx + marker.length);
+  } catch {}
+  return null;
+}
+
 export function ProfileForm() {
   const { user, profile, refreshProfile } = useAuth();
   const supabase = createClient();
@@ -119,25 +134,24 @@ export function ProfileForm() {
     try {
       let nextAvatarUrl: string | null = profile.avatar_url ?? null;
 
-      // Upload a newly-staged image, if any.
+      // Upload a newly-staged image via the server-side API route which uses
+      // the service-role key to bypass Supabase Storage RLS.
       if (pendingAvatar) {
-        const ext =
-          pendingAvatar.name.split('.').pop()?.toLowerCase() || 'png';
-        const path = `${user.id}/avatar-${Date.now()}.${ext}`;
-        const { error: uploadError } = await supabase.storage
-          .from('avatars')
-          .upload(path, pendingAvatar, {
-            cacheControl: '3600',
-            upsert: true,
-            contentType: pendingAvatar.type,
-          });
-        if (uploadError) {
-          throw new Error(`Upload failed: ${uploadError.message}`);
-        }
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from('avatars').getPublicUrl(path);
-        nextAvatarUrl = publicUrl;
+        // Derive the old storage path so the server can delete it.
+        const oldPath = extractStoragePath(profile.avatar_url);
+
+        const fd = new FormData();
+        fd.append('file', pendingAvatar);
+        if (oldPath) fd.append('oldPath', oldPath);
+
+        const res = await fetch('/api/profile/avatar', {
+          method: 'POST',
+          body: fd,
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(`Upload failed: ${data.error || 'Unknown error'}`);
+
+        nextAvatarUrl = data.url;
       } else if (removeAvatar) {
         nextAvatarUrl = null;
       }
