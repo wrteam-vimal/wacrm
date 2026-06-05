@@ -115,7 +115,7 @@ const ACCOUNT_SHARING_FLAG = "account_sharing";
 
 export function Sidebar({ open = false, onClose }: SidebarProps) {
   const pathname = usePathname();
-  const { profile, profileLoading, account, accountRole, signOut } = useAuth();
+  const { profile, profileLoading, account, accountRole, signOut, permissions } = useAuth();
   const totalUnread = useTotalUnread();
   const { showLogo, showTitle, logoUrl, titleText } = useTheme();
 
@@ -240,6 +240,9 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           <ul className="flex flex-col gap-1">
             {navItems.map((item) => {
+              const key = item.label.toLowerCase() as keyof typeof permissions;
+              if (permissions && permissions[key] === false) return null;
+
               const isActive =
                 pathname === item.href ||
                 (item.href !== "/dashboard" && pathname.startsWith(item.href));
@@ -311,96 +314,108 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                   </Link>
                   {settingsExpanded && (
                     <ul className="ml-7 mt-1 flex flex-col gap-1 border-l border-slate-800 pl-3">
-                      <li>
-                        <Link
-                          href="/settings/profile"
-                          className={cn(
-                            "block rounded-md py-1.5 px-2 text-xs font-medium transition-colors lg:py-1",
-                            pathname === "/settings/profile"
-                              ? "text-primary bg-primary/5"
-                              : "text-slate-400 hover:text-white hover:bg-slate-800/40"
-                          )}
-                        >
-                          Profile
-                        </Link>
-                      </li>
-                      <li>
-                        <Link
-                          href="/settings/whatsapp"
-                          className={cn(
-                            "block rounded-md py-1.5 px-2 text-xs font-medium transition-colors lg:py-1",
-                            pathname === "/settings/whatsapp"
-                              ? "text-primary bg-primary/5"
-                              : "text-slate-400 hover:text-white hover:bg-slate-800/40"
-                          )}
-                        >
-                          WhatsApp Config
-                        </Link>
-                      </li>
-                      <li>
-                        <Link
-                          href="/settings/templates"
-                          className={cn(
-                            "block rounded-md py-1.5 px-2 text-xs font-medium transition-colors lg:py-1",
-                            pathname === "/settings/templates"
-                              ? "text-primary bg-primary/5"
-                              : "text-slate-400 hover:text-white hover:bg-slate-800/40"
-                          )}
-                        >
-                          Templates
-                        </Link>
-                      </li>
-                      <li>
-                        <Link
-                          href="/settings/tags"
-                          className={cn(
-                            "block rounded-md py-1.5 px-2 text-xs font-medium transition-colors lg:py-1",
-                            pathname === "/settings/tags"
-                              ? "text-primary bg-primary/5"
-                              : "text-slate-400 hover:text-white hover:bg-slate-800/40"
-                          )}
-                        >
-                          Tags
-                        </Link>
-                      </li>
-                      <li>
-                        <Link
-                          href="/settings/appearance"
-                          className={cn(
-                            "block rounded-md py-1.5 px-2 text-xs font-medium transition-colors lg:py-1",
-                            pathname === "/settings/appearance"
-                              ? "text-primary bg-primary/5"
-                              : "text-slate-400 hover:text-white hover:bg-slate-800/40"
-                          )}
-                        >
-                          Appearance
-                        </Link>
-                      </li>
-                      <li>
-                        <Link
-                          href="/settings/seo"
-                          className={cn(
-                            "block rounded-md py-1.5 px-2 text-xs font-medium transition-colors lg:py-1",
-                            pathname === "/settings/seo"
-                              ? "text-primary bg-primary/5"
-                              : "text-slate-400 hover:text-white hover:bg-slate-800/40"
-                          )}
-                        >
-                          SEO
-                        </Link>
-                      </li>
-                      {accountSharingEnabled && (
+                      {permissions.settings_profile && (
                         <li>
                           <Link
-                            href="/settings/members"
+                            href="/settings/profile"
                             className={cn(
                               "block rounded-md py-1.5 px-2 text-xs font-medium transition-colors lg:py-1",
-                              pathname === "/settings/members"
+                              pathname === "/settings/profile"
                                 ? "text-primary bg-primary/5"
                                 : "text-slate-400 hover:text-white hover:bg-slate-800/40"
                             )}
                           >
-                            Members
+                            Profile
+                          </Link>
+                        </li>
+                      )}
+                      {permissions.settings_whatsapp && (
+                        <li>
+                          <Link
+                            href="/settings/whatsapp"
+                            className={cn(
+                              "block rounded-md py-1.5 px-2 text-xs font-medium transition-colors lg:py-1",
+                              pathname === "/settings/whatsapp"
+                                ? "text-primary bg-primary/5"
+                                : "text-slate-400 hover:text-white hover:bg-slate-800/40"
+                            )}
+                          >
+                            WhatsApp Config
+                          </Link>
+                        </li>
+                      )}
+                      {permissions.settings_templates && (
+                        <li>
+                          <Link
+                            href="/settings/templates"
+                            className={cn(
+                              "block rounded-md py-1.5 px-2 text-xs font-medium transition-colors lg:py-1",
+                              pathname === "/settings/templates"
+                                ? "text-primary bg-primary/5"
+                                : "text-slate-400 hover:text-white hover:bg-slate-800/40"
+                            )}
+                          >
+                            Templates
+                          </Link>
+                        </li>
+                      )}
+                      {permissions.settings_tags && (
+                        <li>
+                          <Link
+                            href="/settings/tags"
+                            className={cn(
+                              "block rounded-md py-1.5 px-2 text-xs font-medium transition-colors lg:py-1",
+                              pathname === "/settings/tags"
+                                ? "text-primary bg-primary/5"
+                                : "text-slate-400 hover:text-white hover:bg-slate-800/40"
+                            )}
+                          >
+                            Tags
+                          </Link>
+                        </li>
+                      )}
+                      {permissions.settings_appearance && (
+                        <li>
+                          <Link
+                            href="/settings/appearance"
+                            className={cn(
+                              "block rounded-md py-1.5 px-2 text-xs font-medium transition-colors lg:py-1",
+                              pathname === "/settings/appearance"
+                                ? "text-primary bg-primary/5"
+                                : "text-slate-400 hover:text-white hover:bg-slate-800/40"
+                            )}
+                          >
+                            Appearance
+                          </Link>
+                        </li>
+                      )}
+                      {permissions.settings_seo && (
+                        <li>
+                          <Link
+                            href="/settings/seo"
+                            className={cn(
+                              "block rounded-md py-1.5 px-2 text-xs font-medium transition-colors lg:py-1",
+                              pathname === "/settings/seo"
+                                ? "text-primary bg-primary/5"
+                                : "text-slate-400 hover:text-white hover:bg-slate-800/40"
+                            )}
+                          >
+                            SEO
+                          </Link>
+                        </li>
+                      )}
+                      {(permissions.manage_roles || permissions.manage_users) && (
+                        <li>
+                          <Link
+                            href="/settings/roles"
+                            className={cn(
+                              "block rounded-md py-1.5 px-2 text-xs font-medium transition-colors lg:py-1",
+                              pathname === "/settings/roles"
+                                ? "text-primary bg-primary/5"
+                                : "text-slate-400 hover:text-white hover:bg-slate-800/40"
+                            )}
+                          >
+                            Roles & Users
                           </Link>
                         </li>
                       )}

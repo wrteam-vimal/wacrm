@@ -36,6 +36,10 @@ const PAGE_HEADERS: Record<string, HeaderContent> = {
     title: 'Members & Sharing',
     description: 'Manage account members, roles, and pending team invitations.',
   },
+  '/settings/roles': {
+    title: 'Roles & Users',
+    description: 'Create custom permission roles and manage workspace user access.',
+  },
 };
 
 export default function SettingsLayout({

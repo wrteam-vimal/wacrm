@@ -30,6 +30,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { createClient } from "@/lib/supabase/server";
 import { hasMinRole, isAccountRole, type AccountRole } from "./roles";
+import { getPermissions, type UserPermissions } from "./permissions";
 
 // ------------------------------------------------------------
 // Errors
@@ -169,5 +170,33 @@ export async function requireRole(min: AccountRole): Promise<AccountContext> {
       `This action requires the '${min}' role or higher`,
     );
   }
+  return ctx;
+}
+
+/**
+ * Enforces a specific custom role permission key.
+ */
+export async function requirePermission(permission: keyof UserPermissions): Promise<AccountContext> {
+  const ctx = await getCurrentAccount();
+
+  // Query custom role for this profile
+  const { data: profile, error } = await ctx.supabase
+    .from("profiles")
+    .select("email, account_role, role_id, roles(permissions)")
+    .eq("user_id", ctx.userId)
+    .maybeSingle();
+
+  if (error || !profile) {
+    throw new ForbiddenError("Unable to fetch user permission state");
+  }
+
+  const rolesData = (profile as any)?.roles;
+  const roleData = Array.isArray(rolesData) ? rolesData[0] : rolesData;
+  const permissions = getPermissions(profile.email, profile.account_role, roleData?.permissions);
+
+  if (!permissions[permission]) {
+    throw new ForbiddenError(`Insufficient permissions: missing '${permission}'`);
+  }
+
   return ctx;
 }

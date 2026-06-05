@@ -19,6 +19,7 @@ import {
   isAccountRole,
   type AccountRole,
 } from "@/lib/auth/roles";
+import { getPermissions, type UserPermissions } from "@/lib/auth/permissions";
 
 interface Profile {
   id: string;
@@ -34,6 +35,8 @@ interface Profile {
   beta_features: string[];
   account_id: string | null;
   account_role: AccountRole | null;
+  role_id?: string | null;
+  permissions?: Record<string, boolean> | null;
 }
 
 interface AccountSummary {
@@ -94,6 +97,7 @@ interface AuthContextValue {
   canEditSettings: boolean;
   /** True if the caller can send messages and edit operational data (agent+). */
   canSendMessages: boolean;
+  permissions: UserPermissions;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -134,7 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // missing account collapses to null rather than a half-
           // populated row (shouldn't happen post-017 NOT NULL, but
           // belt-and-braces against forks running older schemas).
-          "id, full_name, email, avatar_url, role, beta_features, account_id, account_role, account:accounts!inner(id, name)",
+          "id, full_name, email, avatar_url, role, beta_features, account_id, account_role, role_id, roles(id, name, permissions), account:accounts!inner(id, name)",
         )
         .eq("user_id", userId)
         .maybeSingle();
@@ -167,6 +171,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           ? data.account_role
           : null;
 
+        const rolesData = (data as any)?.roles;
+        const roleData = Array.isArray(rolesData) ? rolesData[0] : rolesData;
+        const permissions = roleData?.permissions ?? null;
+
         setProfile({
           id: data.id,
           full_name: data.full_name,
@@ -180,6 +188,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           beta_features: data.beta_features ?? [],
           account_id: data.account_id ?? null,
           account_role: accountRole,
+          role_id: (data as any).role_id ?? null,
+          permissions: permissions,
         });
         setAccount(accountRow);
       }
@@ -284,6 +294,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // dependencies downstream.
   const derived = useMemo(() => {
     const role = profile?.account_role ?? null;
+    const permissions = getPermissions(profile?.email, role, profile?.permissions);
     return {
       accountRole: role,
       accountId: profile?.account_id ?? null,
@@ -294,8 +305,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       canManageMembers: role ? canManageMembersFor(role) : false,
       canEditSettings: role ? canEditSettingsFor(role) : false,
       canSendMessages: role ? canSendMessagesFor(role) : false,
+      permissions,
     };
-  }, [profile?.account_role, profile?.account_id]);
+  }, [profile?.account_role, profile?.account_id, profile?.email, profile?.permissions]);
 
   return (
     <AuthContext.Provider
@@ -345,6 +357,23 @@ export function useAuth(): AuthContextValue {
       canManageMembers: false,
       canEditSettings: false,
       canSendMessages: false,
+      permissions: {
+        dashboard: false,
+        inbox: false,
+        contacts: false,
+        pipelines: false,
+        broadcasts: false,
+        automations: false,
+        flows: false,
+        settings_profile: false,
+        settings_whatsapp: false,
+        settings_templates: false,
+        settings_tags: false,
+        settings_appearance: false,
+        settings_seo: false,
+        manage_roles: false,
+        manage_users: false,
+      },
     };
   }
   return ctx;
