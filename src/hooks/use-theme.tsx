@@ -13,6 +13,8 @@ import {
   DEFAULT_THEME,
   isThemeId,
   type ThemeId,
+  getPublicStorageUrl,
+  getRelativeStoragePath,
 } from "@/lib/themes";
 import { createClient } from "@/lib/supabase/client";
 
@@ -122,17 +124,17 @@ export function ThemeProvider({
   const [titleText, setTitleTextState] = useState<string>(
     initialSettings?.title_text || "WRTeam Whatsapp CRM"
   );
-  const [logoUrl, setLogoUrlState] = useState<string | null>(
-    initialSettings?.logo_url || null
+  const [logoUrl, setLogoUrlState] = useState<string | null>(() =>
+    getPublicStorageUrl(initialSettings?.logo_url || null)
   );
-  const [faviconUrl, setFaviconUrlState] = useState<string | null>(
-    initialSettings?.favicon_url || null
+  const [faviconUrl, setFaviconUrlState] = useState<string | null>(() =>
+    getPublicStorageUrl(initialSettings?.favicon_url || null)
   );
   const [loaderType, setLoaderTypeState] = useState<"shimmer" | "custom">(
     (initialSettings?.loader_type as "shimmer" | "custom") || "shimmer"
   );
-  const [loaderImageUrl, setLoaderImageUrlState] = useState<string | null>(
-    initialSettings?.loader_image_url || null
+  const [loaderImageUrl, setLoaderImageUrlState] = useState<string | null>(() =>
+    getPublicStorageUrl(initialSettings?.loader_image_url || null)
   );
 
   // Helper to save setting to the database (upsert by account_id)
@@ -205,10 +207,10 @@ export function ThemeProvider({
           setShowLogoState(appSettings.show_logo);
           setShowTitleState(appSettings.show_title);
           setTitleTextState(appSettings.title_text || "WRTeam Whatsapp CRM");
-          setLogoUrlState(appSettings.logo_url);
-          setFaviconUrlState(appSettings.favicon_url);
+          setLogoUrlState(getPublicStorageUrl(appSettings.logo_url));
+          setFaviconUrlState(getPublicStorageUrl(appSettings.favicon_url));
           setLoaderTypeState((appSettings.loader_type as "shimmer" | "custom") || "shimmer");
-          setLoaderImageUrlState(appSettings.loader_image_url);
+          setLoaderImageUrlState(getPublicStorageUrl(appSettings.loader_image_url));
 
           if (typeof document !== "undefined") {
             document.documentElement.dataset.theme = appSettings.theme || DEFAULT_THEME;
@@ -218,10 +220,11 @@ export function ThemeProvider({
               removeCustomColorStyles();
             }
 
-            if (appSettings.favicon_url) {
+            const favicon = getPublicStorageUrl(appSettings.favicon_url);
+            if (favicon) {
               const link = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
               if (link) {
-                link.href = `${appSettings.favicon_url}?t=${Date.now()}`;
+                link.href = `${favicon}?t=${Date.now()}`;
               }
             }
           }
@@ -353,10 +356,10 @@ export function ThemeProvider({
         show_logo: settings.showLogo,
         show_title: settings.showTitle,
         title_text: settings.titleText,
-        logo_url: settings.logoUrl,
-        favicon_url: settings.faviconUrl,
+        logo_url: getRelativeStoragePath(settings.logoUrl),
+        favicon_url: getRelativeStoragePath(settings.faviconUrl),
         loader_type: settings.loaderType,
-        loader_image_url: settings.loaderImageUrl,
+        loader_image_url: getRelativeStoragePath(settings.loaderImageUrl),
         updated_at: new Date().toISOString(),
       };
 
@@ -400,7 +403,11 @@ export function ThemeProvider({
 
         const link = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
         if (link) {
-          link.href = settings.faviconUrl ? `${settings.faviconUrl}?t=${Date.now()}` : "/icon";
+          // For local assets the file is replaced in-place; append a timestamp
+          // only when a URL is available to bust any CDN/proxy caches.
+          link.href = settings.faviconUrl
+            ? `${settings.faviconUrl.split("?")[0]}?t=${Date.now()}`
+            : "/icon";
         }
       }
 

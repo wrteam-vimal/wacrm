@@ -59,11 +59,11 @@ CREATE TRIGGER set_updated_at BEFORE UPDATE ON appearance_settings
  * Appearance panel — dynamic color theme and brand assets configuration.
  *
  * Persists layout options, custom color themes, logo URL, and favicon URL
- * inside Supabase Database (appearance_settings) and uploads the corresponding media assets
- * to Supabase Storage avatars bucket.
+ * inside Supabase Database (appearance_settings). All media assets are saved
+ * to the local server filesystem under public/assets/ via /api/appearance/upload.
  */
 export function AppearancePanel() {
-  const { accountId, canEditSettings, user } = useAuth();
+  const { accountId, canEditSettings } = useAuth();
   const supabase = createClient();
 
   const {
@@ -200,14 +200,13 @@ export function AppearancePanel() {
     type: "logo" | "favicon" | "loader",
   ) => {
     const file = e.target.files?.[0];
-    if (!file || !accountId || !user?.id) return;
+    if (!file) return;
 
     if (!canEditSettings) {
       toast.error("You do not have permission to upload brand assets");
       return;
     }
 
-    // Small validation
     if (!file.type.startsWith("image/")) {
       toast.error("Unsupported file type", {
         description: "Please upload an image file.",
@@ -215,43 +214,35 @@ export function AppearancePanel() {
       return;
     }
 
-    if (type === "logo") {
-      setUploadingLogo(true);
-    } else if (type === "favicon") {
-      setUploadingFavicon(true);
-    } else {
-      setUploadingLoader(true);
-    }
+    if (type === "logo") setUploadingLogo(true);
+    else if (type === "favicon") setUploadingFavicon(true);
+    else setUploadingLoader(true);
 
     try {
-      const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
-      const path = `${user.id}/${type}-${Date.now()}.${ext}`;
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("type", type);
 
-      const { error: uploadError } = await supabase.storage
-          .from('avatars')
-          .upload(path, file, {
-            cacheControl: '3600',
-            upsert: true,
-            contentType: file.type,
-          });
+      const res = await fetch("/api/appearance/upload", {
+        method: "POST",
+        body: formData,
+      });
 
-      if (uploadError) throw uploadError;
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Upload failed");
 
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from('avatars').getPublicUrl(path);
+      // Bust the browser's image cache by appending a timestamp to the src.
+      const urlWithBust = `${data.url}?t=${Date.now()}`;
 
-      // Save URL with timestamp query param for cache-busting
-      const bustedUrl = `${publicUrl}?t=${Date.now()}`;
       if (type === "logo") {
-        setTempLogoUrl(bustedUrl);
+        setTempLogoUrl(urlWithBust);
         toast.success("Logo uploaded successfully");
       } else if (type === "favicon") {
-        setTempFaviconUrl(bustedUrl);
+        setTempFaviconUrl(urlWithBust);
         toast.success("Favicon uploaded successfully");
       } else {
-        setTempLoaderImageUrl(bustedUrl);
-        toast.success("Custom loader graphic uploaded successfully");
+        setTempLoaderImageUrl(urlWithBust);
+        toast.success("Loader graphic uploaded successfully");
       }
     } catch (err: any) {
       toast.error("Upload failed", {
