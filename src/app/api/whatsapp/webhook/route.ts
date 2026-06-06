@@ -24,6 +24,31 @@ function supabaseAdmin() {
   return _adminClient
 }
 
+async function logWebhookEvent(params: {
+  accountId?: string | null
+  phoneNumberId?: string | null
+  eventType: string
+  payload: any
+  status: 'success' | 'failed'
+  errorMessage?: string | null
+}) {
+  try {
+    const { error } = await supabaseAdmin().from('webhook_logs').insert({
+      account_id: params.accountId || null,
+      phone_number_id: params.phoneNumberId || null,
+      event_type: params.eventType,
+      payload: params.payload,
+      status: params.status,
+      error_message: params.errorMessage || null,
+    })
+    if (error) {
+      console.warn('[webhook_logs] Failed to write log:', error.message)
+    }
+  } catch (err) {
+    console.warn('[webhook_logs] Failed to write log:', err)
+  }
+}
+
 interface WhatsAppMessage {
   id: string
   from: string
@@ -139,6 +164,15 @@ export async function GET(request: Request) {
             }
           })
       }
+      
+      // Log successful verification
+      await logWebhookEvent({
+        accountId: matchedConfig.account_id,
+        eventType: 'verification',
+        payload: { mode, challenge, verifyToken },
+        status: 'success'
+      })
+
       // Return challenge as plain text
       return new Response(challenge, {
         status: 200,
@@ -146,12 +180,26 @@ export async function GET(request: Request) {
       })
     }
 
+    // Log verification token mismatch
+    await logWebhookEvent({
+      eventType: 'verification',
+      payload: { mode, challenge, verifyToken },
+      status: 'failed',
+      errorMessage: 'Verification token mismatch'
+    })
+
     return NextResponse.json(
       { error: 'Verification token mismatch' },
       { status: 403 }
     )
   } catch (error) {
     console.error('Error in webhook GET verification:', error)
+    await logWebhookEvent({
+      eventType: 'verification',
+      payload: { url: request.url },
+      status: 'failed',
+      errorMessage: error instanceof Error ? error.message : String(error)
+    })
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -171,6 +219,16 @@ export async function POST(request: Request) {
     // loudly if a misconfiguration causes signatures to stop matching,
     // rather than silently eating events.
     console.warn('[webhook] rejected request with invalid signature')
+    
+    let parsedPayload = null
+    try { parsedPayload = JSON.parse(rawBody) } catch {}
+    await logWebhookEvent({
+      eventType: 'error',
+      payload: parsedPayload || { rawBody, signature },
+      status: 'failed',
+      errorMessage: 'Invalid webhook signature'
+    })
+
     return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
   }
 
@@ -178,12 +236,24 @@ export async function POST(request: Request) {
   try {
     body = JSON.parse(rawBody)
   } catch {
+    await logWebhookEvent({
+      eventType: 'error',
+      payload: { rawBody },
+      status: 'failed',
+      errorMessage: 'Invalid JSON payload'
+    })
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
   // Process asynchronously so we can ack Meta within their timeout.
-  processWebhook(body).catch((error) => {
+  processWebhook(body).catch(async (error) => {
     console.error('Error processing webhook:', error)
+    await logWebhookEvent({
+      eventType: 'error',
+      payload: body,
+      status: 'failed',
+      errorMessage: error instanceof Error ? error.message : String(error)
+    })
   })
 
   return NextResponse.json({ status: 'received' }, { status: 200 })
@@ -237,28 +307,64 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
           phoneNumberId,
           configError
         )
+        await logWebhookEvent({
+          phoneNumberId,
+          eventType: 'error',
+          payload: value,
+          status: 'failed',
+          errorMessage: `Error fetching whatsapp_config: ${configError.message}`
+        })
         continue
       }
 
       if (!configRows || configRows.length === 0) {
         console.error('No config found for phone_number_id:', phoneNumberId)
+        await logWebhookEvent({
+          phoneNumberId,
+          eventType: 'error',
+          payload: value,
+          status: 'failed',
+          errorMessage: `No whatsapp_config found for phone_number_id: ${phoneNumberId}`
+        })
         continue
       }
 
       if (configRows.length > 1) {
+        const owners = configRows.map((r: { account_id: string; user_id: string }) => `${r.account_id} (admin ${r.user_id})`)
         console.error(
           `Multiple configs (${configRows.length}) found for phone_number_id:`,
           phoneNumberId,
           '— inbound message dropped. Resolve duplicates so each number maps to a single account.',
           'Account owners:',
-          configRows.map((r: { account_id: string; user_id: string }) => `${r.account_id} (admin ${r.user_id})`)
+          owners
         )
+        await logWebhookEvent({
+          phoneNumberId,
+          eventType: 'error',
+          payload: value,
+          status: 'failed',
+          errorMessage: `Multiple configs found for phone_number_id: ${phoneNumberId}. Owners: ${owners.join(', ')}`
+        })
         continue
       }
 
       const config = configRows[0]
 
-      const decryptedAccessToken = decrypt(config.access_token)
+      let decryptedAccessToken = ''
+      try {
+        decryptedAccessToken = decrypt(config.access_token)
+      } catch (err) {
+        console.error('Failed to decrypt WhatsApp access token:', err)
+        await logWebhookEvent({
+          accountId: config.account_id,
+          phoneNumberId,
+          eventType: 'error',
+          payload: value,
+          status: 'failed',
+          errorMessage: `Failed to decrypt access token: ${err instanceof Error ? err.message : String(err)}. Verify ENCRYPTION_KEY.`
+        })
+        continue
+      }
 
       for (let i = 0; i < value.messages.length; i++) {
         const message = value.messages[i]
@@ -274,7 +380,8 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
           // inserts that need it for NOT NULL FK compliance. Always
           // the admin who saved the WhatsApp config.
           config.user_id,
-          decryptedAccessToken
+          decryptedAccessToken,
+          phoneNumberId
         )
       }
     }
@@ -508,7 +615,8 @@ async function processMessage(
   // (contacts, conversations). Always the admin who saved the
   // WhatsApp config; the choice is arbitrary post-017 but stable.
   configOwnerUserId: string,
-  accessToken: string
+  accessToken: string,
+  phoneNumberId: string
 ) {
   const senderPhone = normalizePhone(message.from)
   const contactName = contact.profile.name
@@ -520,7 +628,17 @@ async function processMessage(
     senderPhone,
     contactName
   )
-  if (!contactOutcome) return
+  if (!contactOutcome) {
+    await logWebhookEvent({
+      accountId,
+      phoneNumberId,
+      eventType: message.type === 'reaction' ? 'reaction' : 'message',
+      payload: message,
+      status: 'failed',
+      errorMessage: 'Failed to create or find contact'
+    })
+    return
+  }
   const contactRecord = contactOutcome.contact
 
   // Find or create conversation
@@ -529,7 +647,17 @@ async function processMessage(
     configOwnerUserId,
     contactRecord.id
   )
-  if (!conversation) return
+  if (!conversation) {
+    await logWebhookEvent({
+      accountId,
+      phoneNumberId,
+      eventType: message.type === 'reaction' ? 'reaction' : 'message',
+      payload: message,
+      status: 'failed',
+      errorMessage: 'Failed to create or find conversation'
+    })
+    return
+  }
 
   // Reactions short-circuit here — they aren't messages. We never insert
   // into `messages`, never bump unread_count, never update last_message_text.
@@ -612,6 +740,14 @@ async function processMessage(
 
   if (msgError) {
     console.error('Error inserting message:', msgError)
+    await logWebhookEvent({
+      accountId,
+      phoneNumberId,
+      eventType: 'message',
+      payload: message,
+      status: 'failed',
+      errorMessage: `Error inserting message: ${msgError.message}`
+    })
     return
   }
 
@@ -712,6 +848,15 @@ async function processMessage(
       },
     }).catch((err) => console.error('[automations] dispatch failed:', err))
   }
+
+  // Log successful processing
+  await logWebhookEvent({
+    accountId,
+    phoneNumberId,
+    eventType: message.type === 'reaction' ? 'reaction' : 'message',
+    payload: message,
+    status: 'success'
+  })
 }
 
 async function parseMessageContent(

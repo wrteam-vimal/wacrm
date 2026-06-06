@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/hooks/use-theme";
 import { DEFAULT_THEME, getPublicStorageUrl } from "@/lib/themes";
 import { createClient } from "@/lib/supabase/server";
 import { logger } from "@/lib/logger";
+import ErrorLoggerClient from "@/components/error-logger-client";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -299,6 +300,7 @@ export default async function RootLayout({
             }}
           />
           <Analytics />
+          <ErrorLoggerClient />
         </ThemeProvider>
       </body>
     </html>

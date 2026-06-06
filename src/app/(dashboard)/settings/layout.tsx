@@ -32,6 +32,14 @@ const PAGE_HEADERS: Record<string, HeaderContent> = {
     title: 'Search Engine Optimization (SEO)',
     description: 'Configure meta tags, Open Graph parameters, and header script injections.',
   },
+  '/settings/logs': {
+    title: 'System Logs',
+    description: 'Trace system events, webhook payloads, database insertions, and automation triggers.',
+  },
+  '/settings/webhook-test': {
+    title: 'Webhook Test Tool',
+    description: 'Simulate inbound Meta payloads locally or on Vercel to diagnose communication issues.',
+  },
   '/settings/members': {
     title: 'Members & Sharing',
     description: 'Manage account members, roles, and pending team invitations.',

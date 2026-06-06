@@ -74,6 +74,8 @@ const SETTINGS_MODULES = [
   { key: 'settings_tags', label: 'Tags Settings', desc: 'Create and assign system tags for segmentation' },
   { key: 'settings_appearance', label: 'Appearance Settings', desc: 'Adjust primary colors, logos, and storage types' },
   { key: 'settings_seo', label: 'SEO Settings', desc: 'Configure search optimization headers and meta scripts' },
+  { key: 'settings_logs', label: 'System Logs', desc: 'Access system operation logs and webhook execution histories' },
+  { key: 'settings_webhook_test', label: 'Webhook Test', desc: 'Access the webhook simulation and diagnostic tools' },
   { key: 'manage_roles', label: 'Manage Roles', desc: 'Create, edit, and delete custom workspace roles' },
   { key: 'manage_users', label: 'Manage Users', desc: 'Create, edit, and delete workspace user accounts' },
 ];

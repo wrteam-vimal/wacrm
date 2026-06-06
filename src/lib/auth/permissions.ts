@@ -14,6 +14,8 @@ export interface UserPermissions {
   settings_tags: boolean;
   settings_appearance: boolean;
   settings_seo: boolean;
+  settings_logs: boolean;
+  settings_webhook_test: boolean;
   manage_roles: boolean;
   manage_users: boolean;
 }
@@ -43,6 +45,8 @@ export function getPermissions(
       settings_tags: true,
       settings_appearance: true,
       settings_seo: true,
+      settings_logs: true,
+      settings_webhook_test: true,
       manage_roles: true,
       manage_users: true,
     };
@@ -64,6 +68,8 @@ export function getPermissions(
       settings_tags: !!rolePermissions.settings_tags,
       settings_appearance: !!rolePermissions.settings_appearance,
       settings_seo: !!rolePermissions.settings_seo,
+      settings_logs: !!rolePermissions.settings_logs,
+      settings_webhook_test: !!rolePermissions.settings_webhook_test,
       manage_roles: !!rolePermissions.manage_roles,
       manage_users: !!rolePermissions.manage_users,
     };
@@ -87,6 +93,8 @@ export function getPermissions(
     settings_tags: isAdminOrOwner || isAgent,
     settings_appearance: isAdminOrOwner,
     settings_seo: isAdminOrOwner,
+    settings_logs: isAdminOrOwner,
+    settings_webhook_test: isAdminOrOwner,
     manage_roles: isAdminOrOwner,
     manage_users: isAdminOrOwner,
   };

@@ -404,6 +404,36 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                           </Link>
                         </li>
                       )}
+                      {permissions.settings_logs && (
+                        <li>
+                          <Link
+                            href="/settings/logs"
+                            className={cn(
+                              "block rounded-md py-1.5 px-2 text-xs font-medium transition-colors lg:py-1",
+                              pathname === "/settings/logs"
+                                ? "text-primary bg-primary/5"
+                                : "text-slate-400 hover:text-white hover:bg-slate-800/40"
+                            )}
+                          >
+                            Logs
+                          </Link>
+                        </li>
+                      )}
+                      {permissions.settings_webhook_test && (
+                        <li>
+                          <Link
+                            href="/settings/webhook-test"
+                            className={cn(
+                              "block rounded-md py-1.5 px-2 text-xs font-medium transition-colors lg:py-1",
+                              pathname === "/settings/webhook-test"
+                                ? "text-primary bg-primary/5"
+                                : "text-slate-400 hover:text-white hover:bg-slate-800/40"
+                            )}
+                          >
+                            Webhook Test
+                          </Link>
+                        </li>
+                      )}
                       {(permissions.manage_roles || permissions.manage_users) && (
                         <li>
                           <Link

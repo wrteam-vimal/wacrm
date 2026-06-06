@@ -371,6 +371,8 @@ export function useAuth(): AuthContextValue {
         settings_tags: false,
         settings_appearance: false,
         settings_seo: false,
+        settings_logs: false,
+        settings_webhook_test: false,
         manage_roles: false,
         manage_users: false,
       },

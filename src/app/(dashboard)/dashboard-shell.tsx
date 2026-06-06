@@ -23,6 +23,8 @@ function getRequiredPermission(pathname: string): keyof UserPermissions | null {
   if (pathname === "/settings/tags") return "settings_tags";
   if (pathname === "/settings/appearance") return "settings_appearance";
   if (pathname === "/settings/seo") return "settings_seo";
+  if (pathname === "/settings/logs") return "settings_logs";
+  if (pathname === "/settings/webhook-test") return "settings_webhook_test";
   return null;
 }
 
