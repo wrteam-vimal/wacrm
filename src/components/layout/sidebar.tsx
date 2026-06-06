@@ -9,6 +9,7 @@ import { useTotalUnread } from "@/hooks/use-total-unread";
 import { useTheme } from "@/hooks/use-theme";
 import {
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   Crown,
   GitBranch,
@@ -26,6 +27,12 @@ import {
   X,
   Zap,
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { AccountRole } from "@/lib/auth/roles";
 
 // Per-role chip metadata used in the sidebar's account strip + the
@@ -119,6 +126,25 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const totalUnread = useTotalUnread();
   const { showLogo, showTitle, logoUrl, titleText } = useTheme();
 
+
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Sync isCollapsed with localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem("sidebar-collapsed");
+    if (stored !== null) {
+      setIsCollapsed(stored === "true");
+    }
+  }, []);
+
+  const handleToggleCollapse = () => {
+    setIsCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("sidebar-collapsed", String(next));
+      return next;
+    });
+  };
+
   const [settingsExpanded, setSettingsExpanded] = useState(() =>
     pathname.startsWith("/settings")
   );
@@ -189,52 +215,57 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         )}
       />
 
-      <aside
-        className={cn(
-          // Mobile: fixed drawer that slides in from the left.
-          "fixed inset-y-0 left-0 z-40 flex h-full w-64 flex-col border-r border-slate-800 bg-slate-900",
-          "transition-transform duration-200 ease-out will-change-transform",
-          open ? "translate-x-0" : "-translate-x-full",
-          // Desktop: static, always visible — reset all the mobile framing.
-          "lg:static lg:z-0 lg:w-60 lg:translate-x-0 lg:transition-none",
-        )}
-        aria-label="Primary"
-      >
-        {/* Logo row. On mobile we put a close button here; on desktop the
-            close button is hidden since the sidebar is always-visible. */}
-        <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-slate-800 px-4">
-          {(showLogo || showTitle) && (
-            <Link href="/dashboard" className="flex items-center gap-2 min-w-0">
-              {showLogo && (
-                logoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={logoUrl || undefined}
-                    alt="Logo"
-                    className="h-8 w-8 object-contain rounded-lg shrink-0"
-                  />
-                ) : (
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shrink-0">
-                    <MessageSquare className="h-4 w-4" />
-                  </div>
-                )
-              )}
-              {showTitle && (
-                <span className="truncate text-sm font-semibold text-white">
-                  {titleText}
-                </span>
-              )}
-            </Link>
+      <TooltipProvider delay={200}>
+        <aside
+          className={cn(
+            // Mobile: fixed drawer that slides in from the left.
+            "fixed inset-y-0 left-0 z-40 flex h-full w-64 flex-col border-r border-slate-800 bg-slate-900",
+            "transition-[transform,width] duration-300 ease-in-out will-change-transform",
+            open ? "translate-x-0" : "-translate-x-full",
+            // Desktop: static, always visible — reset all the mobile framing.
+            "lg:static lg:z-0 lg:translate-x-0",
+            isCollapsed ? "lg:w-16" : "lg:w-60"
           )}
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close menu"
-            className="flex h-9 w-9 items-center justify-center rounded-md text-slate-400 hover:bg-slate-800 hover:text-white lg:hidden"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
+          aria-label="Primary"
+        >
+          {/* Logo row. On mobile we put a close button here; on desktop the
+              close button is hidden since the sidebar is always-visible. */}
+          <div className={cn(
+            "flex h-14 shrink-0 items-center border-b border-slate-800 transition-all duration-300",
+            isCollapsed ? "justify-center px-2" : "justify-between gap-2 px-4"
+          )}>
+            {(showLogo || showTitle) && (
+              <Link href="/dashboard" className="flex items-center gap-2 min-w-0">
+                {showLogo && (
+                  logoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={logoUrl || undefined}
+                      alt="Logo"
+                      className="h-8 w-8 object-contain rounded-lg shrink-0"
+                    />
+                  ) : (
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shrink-0">
+                      <MessageSquare className="h-4 w-4" />
+                    </div>
+                  )
+                )}
+                {!isCollapsed && showTitle && (
+                  <span className="truncate text-sm font-semibold text-white">
+                    {titleText}
+                  </span>
+                )}
+              </Link>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close menu"
+              className="flex h-9 w-9 items-center justify-center rounded-md text-slate-400 hover:bg-slate-800 hover:text-white lg:hidden"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
 
         {/* Main navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-4">
@@ -250,38 +281,74 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               const showUnreadDot =
                 item.href === "/inbox" && totalUnread > 0 && !isActive;
 
+              const linkContent = (
+                <div className="relative flex items-center justify-center">
+                  <item.icon className="h-4 w-4 shrink-0" />
+                  {isCollapsed && showUnreadDot && (
+                    <span
+                      aria-label={`${totalUnread} unread conversation${totalUnread === 1 ? "" : "s"}`}
+                      className="absolute -top-1.5 -right-1.5 flex h-2.5 w-2.5"
+                    >
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
+                    </span>
+                  )}
+                </div>
+              );
+
+              const linkElement = (
+                <Link
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all lg:py-2",
+                    isActive
+                      ? "bg-primary/10 text-primary"
+                      : "text-slate-400 hover:bg-slate-800 hover:text-white",
+                    isCollapsed && "lg:justify-center lg:px-2"
+                  )}
+                >
+                  {isCollapsed ? (
+                    linkContent
+                  ) : (
+                    <>
+                      <item.icon className="h-4 w-4 shrink-0" />
+                      <span className="flex-1">{item.label}</span>
+                      {item.beta && (
+                        <span
+                          aria-label="Beta feature"
+                          className="rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-300"
+                        >
+                          Beta
+                        </span>
+                      )}
+                      {showUnreadDot && (
+                        <span
+                          aria-label={`${totalUnread} unread conversation${totalUnread === 1 ? "" : "s"}`}
+                          className="relative flex h-2 w-2"
+                        >
+                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+                          <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+                        </span>
+                      )}
+                    </>
+                  )}
+                </Link>
+              );
+
               return (
                 <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    className={cn(
-                      // Taller on mobile so fingers can hit the row reliably (≥44px).
-                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
-                      isActive
-                        ? "bg-primary/10 text-primary"
-                        : "text-slate-400 hover:bg-slate-800 hover:text-white",
-                    )}
-                  >
-                    <item.icon className="h-4 w-4" />
-                    <span className="flex-1">{item.label}</span>
-                    {item.beta && (
-                      <span
-                        aria-label="Beta feature"
-                        className="rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-300"
-                      >
-                        Beta
-                      </span>
-                    )}
-                    {showUnreadDot && (
-                      <span
-                        aria-label={`${totalUnread} unread conversation${totalUnread === 1 ? "" : "s"}`}
-                        className="relative flex h-2 w-2"
-                      >
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
-                        <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
-                      </span>
-                    )}
-                  </Link>
+                  {isCollapsed ? (
+                    <Tooltip>
+                      <TooltipTrigger render={linkElement}>
+                        {linkContent}
+                      </TooltipTrigger>
+                      <TooltipContent side="right">
+                        {item.label}
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    linkElement
+                  )}
                 </li>
               );
             })}
@@ -292,27 +359,52 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           <ul className="flex flex-col gap-1">
             {bottomNavItems.map((item) => {
               const isSettingsActive = pathname.startsWith("/settings");
+
+              const linkContent = <item.icon className="h-4 w-4 shrink-0" />;
+
+              const linkElement = (
+                <Link
+                  href={item.href}
+                  onClick={isCollapsed ? undefined : handleSettingsClick}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all lg:py-2",
+                    isSettingsActive
+                      ? "bg-primary/10 text-primary"
+                      : "text-slate-400 hover:bg-slate-800 hover:text-white",
+                    isCollapsed && "lg:justify-center lg:px-2"
+                  )}
+                >
+                  {isCollapsed ? (
+                    linkContent
+                  ) : (
+                    <>
+                      <item.icon className="h-4 w-4 shrink-0" />
+                      <span className="flex-1">{item.label}</span>
+                      {settingsExpanded ? (
+                        <ChevronDown className="h-4 w-4 text-slate-400" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 text-slate-400" />
+                      )}
+                    </>
+                  )}
+                </Link>
+              );
+
               return (
                 <li key={item.href} className="flex flex-col gap-1">
-                  <Link
-                    href={item.href}
-                    onClick={handleSettingsClick}
-                    className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
-                      isSettingsActive
-                        ? "bg-primary/10 text-primary"
-                        : "text-slate-400 hover:bg-slate-800 hover:text-white",
-                    )}
-                  >
-                    <item.icon className="h-4 w-4" />
-                    <span className="flex-1">{item.label}</span>
-                    {settingsExpanded ? (
-                      <ChevronDown className="h-4 w-4 text-slate-400" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4 text-slate-400" />
-                    )}
-                  </Link>
-                  {settingsExpanded && (
+                  {isCollapsed ? (
+                    <Tooltip>
+                      <TooltipTrigger render={linkElement}>
+                        {linkContent}
+                      </TooltipTrigger>
+                      <TooltipContent side="right">
+                        {item.label}
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    linkElement
+                  )}
+                  {settingsExpanded && !isCollapsed && (
                     <ul className="ml-7 mt-1 flex flex-col gap-1 border-l border-slate-800 pl-3">
                       {permissions.settings_profile && (
                         <li>
@@ -454,6 +546,37 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 </li>
               );
             })}
+
+            {/* Collapse/Expand Toggle Button */}
+            <li className="hidden lg:block">
+              {isCollapsed ? (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        type="button"
+                        onClick={handleToggleCollapse}
+                        className="flex w-full items-center justify-center rounded-lg px-2 py-2 text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+                      >
+                        <ChevronRight className="h-4 w-4 shrink-0" />
+                      </button>
+                    }
+                  />
+                  <TooltipContent side="right">
+                    Expand Menu
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleToggleCollapse}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-colors lg:py-2"
+                >
+                  <ChevronLeft className="h-4 w-4 shrink-0" />
+                  <span className="flex-1 text-left">Collapse Menu</span>
+                </button>
+              )}
+            </li>
           </ul>
         </nav>
 
@@ -465,7 +588,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               so showing it here would just duplicate the user name
               below. Once the flag is on the user is at minimum
               aware of which shared account they're acting in. */}
-          {accountSharingEnabled && account?.name ? (
+          {accountSharingEnabled && account?.name && !isCollapsed && (
             <div className="mb-2 flex items-center gap-2 px-3 text-xs text-slate-500">
               <UsersRound className="size-3.5 shrink-0" />
               {/* `title=` exposes the full name on hover when it
@@ -493,31 +616,59 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 })()
               ) : null}
             </div>
-          ) : null}
+          )}
           <DropdownMenu>
-            <DropdownMenuTrigger className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-slate-800/60 focus:bg-slate-800/60 focus:outline-none data-popup-open:bg-slate-800/60">
-              <Avatar className="size-8 shrink-0">
-                {profile?.avatar_url ? (
-                  <AvatarImage
-                    src={profile.avatar_url}
-                    alt={profile.full_name ?? "Avatar"}
-                  />
-                ) : null}
-                <AvatarFallback className="bg-primary/10 text-sm font-medium text-primary">
-                  {profile?.full_name?.charAt(0)?.toUpperCase() ??
-                    profile?.email?.charAt(0)?.toUpperCase() ??
-                    "U"}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-white">
-                  {profile?.full_name ?? "User"}
-                </p>
-                <p className="truncate text-xs text-slate-400">
-                  {profile?.email ?? ""}
-                </p>
-              </div>
-            </DropdownMenuTrigger>
+            {isCollapsed ? (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <DropdownMenuTrigger className="flex w-full items-center justify-center rounded-lg px-1 py-2 text-left transition-colors hover:bg-slate-800/60 focus:bg-slate-800/60 focus:outline-none data-popup-open:bg-slate-800/60">
+                      <Avatar className="size-8 shrink-0">
+                        {profile?.avatar_url ? (
+                          <AvatarImage
+                            src={profile.avatar_url}
+                            alt={profile.full_name ?? "Avatar"}
+                          />
+                        ) : null}
+                        <AvatarFallback className="bg-primary/10 text-sm font-medium text-primary">
+                          {profile?.full_name?.charAt(0)?.toUpperCase() ??
+                            profile?.email?.charAt(0)?.toUpperCase() ??
+                            "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                    </DropdownMenuTrigger>
+                  }
+                />
+                <TooltipContent side="right">
+                  <div className="text-xs font-semibold">{profile?.full_name ?? "User"}</div>
+                  <div className="text-[10px] text-slate-400">{profile?.email ?? ""}</div>
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <DropdownMenuTrigger className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-slate-800/60 focus:bg-slate-800/60 focus:outline-none data-popup-open:bg-slate-800/60">
+                <Avatar className="size-8 shrink-0">
+                  {profile?.avatar_url ? (
+                    <AvatarImage
+                      src={profile.avatar_url}
+                      alt={profile.full_name ?? "Avatar"}
+                    />
+                  ) : null}
+                  <AvatarFallback className="bg-primary/10 text-sm font-medium text-primary">
+                    {profile?.full_name?.charAt(0)?.toUpperCase() ??
+                      profile?.email?.charAt(0)?.toUpperCase() ??
+                      "U"}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-white">
+                    {profile?.full_name ?? "User"}
+                  </p>
+                  <p className="truncate text-xs text-slate-400">
+                    {profile?.email ?? ""}
+                  </p>
+                </div>
+              </DropdownMenuTrigger>
+            )}
             <DropdownMenuContent
               align="end"
               side="top"
@@ -560,6 +711,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           </DropdownMenu>
         </div>
       </aside>
-    </>
+    </TooltipProvider>
+  </>
   );
 }
