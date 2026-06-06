@@ -83,6 +83,7 @@ export function AppearancePanel() {
     loaderType,
     loaderImageUrl,
     storageMode,
+    allowSignup,
     persistSettings,
   } = useTheme();
 
@@ -97,6 +98,7 @@ export function AppearancePanel() {
   const [tempLoaderType, setTempLoaderType] = useState<"shimmer" | "custom">(loaderType);
   const [tempLoaderImageUrl, setTempLoaderImageUrl] = useState<string | null>(loaderImageUrl);
   const [tempStorageMode, setTempStorageMode] = useState<"local" | "supabase">(storageMode);
+  const [tempAllowSignup, setTempAllowSignup] = useState<boolean>(allowSignup);
   const [saving, setSaving] = useState(false);
 
   // Synchronize local states with global context when settings load
@@ -111,7 +113,8 @@ export function AppearancePanel() {
     setTempLoaderType(loaderType);
     setTempLoaderImageUrl(loaderImageUrl);
     setTempStorageMode(storageMode);
-  }, [theme, customColor, showLogo, showTitle, titleText, logoUrl, faviconUrl, loaderType, loaderImageUrl, storageMode]);
+    setTempAllowSignup(allowSignup);
+  }, [theme, customColor, showLogo, showTitle, titleText, logoUrl, faviconUrl, loaderType, loaderImageUrl, storageMode, allowSignup]);
 
   const logoInputRef = useRef<HTMLInputElement>(null);
   const faviconInputRef = useRef<HTMLInputElement>(null);
@@ -315,6 +318,7 @@ export function AppearancePanel() {
         loaderType: tempLoaderType,
         loaderImageUrl: tempLoaderImageUrl,
         storageMode: tempStorageMode,
+        allowSignup: tempAllowSignup,
       });
       toast.success("Appearance settings saved successfully");
     } catch (err) {
@@ -783,6 +787,31 @@ export function AppearancePanel() {
               Images are stored as fixed filenames — new uploads overwrite the old file in-place.
             </p>
           )}
+        </div>
+      </section>
+
+      {/* Registration / Signup Settings */}
+      <section className="rounded-lg border border-slate-800 bg-slate-900/40 p-5 space-y-4">
+        <div>
+          <h3 className="text-md font-semibold text-white">Public Account Registration</h3>
+          <p className="mt-1 text-sm text-slate-400">
+            Control whether visitors can create a new account via the signup link on the login page.
+          </p>
+        </div>
+        <div className="pt-2 border-t border-slate-800">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-sm font-medium text-white block">Allow Public Sign-up</span>
+              <span className="text-xs text-slate-400">
+                When disabled, the "Create account" link will be hidden, and direct signup will be blocked unless invited.
+              </span>
+            </div>
+            <Switch
+              checked={tempAllowSignup}
+              onCheckedChange={setTempAllowSignup}
+              disabled={!canEditSettings}
+            />
+          </div>
         </div>
       </section>
 

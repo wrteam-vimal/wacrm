@@ -31,7 +31,7 @@ export default function LoginPage() {
 }
 
 function LoginPageInner() {
-  const { logoUrl, showLogo, titleText } = useTheme();
+  const { logoUrl, showLogo, titleText, allowSignup = true } = useTheme();
   const searchParams = useSearchParams();
   // Forwarded from `/join/<token>` when the visitor already has an
   // account. After a successful sign-in we send them to the join
@@ -147,19 +147,21 @@ function LoginPageInner() {
           </Button>
         </form>
 
-        <p className="mt-6 text-center text-xs text-slate-400">
-          Don&apos;t have an account?{" "}
-          <Link
-            href={
-              inviteToken
-                ? `/signup?invite=${encodeURIComponent(inviteToken)}`
-                : "/signup"
-            }
-            className="text-primary hover:text-primary/80 font-medium transition-colors"
-          >
-            Create account
-          </Link>
-        </p>
+        {(allowSignup || inviteToken) && (
+          <p className="mt-6 text-center text-xs text-slate-400">
+            Don&apos;t have an account?{" "}
+            <Link
+              href={
+                inviteToken
+                  ? `/signup?invite=${encodeURIComponent(inviteToken)}`
+                  : "/signup"
+              }
+              className="text-primary hover:text-primary/80 font-medium transition-colors"
+            >
+              Create account
+            </Link>
+          </p>
+        )}
       </CardContent>
     </Card>
   );

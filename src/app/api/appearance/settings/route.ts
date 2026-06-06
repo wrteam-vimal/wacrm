@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
       loader_type: body.loaderType,
       loader_image_url: getRelativeStoragePath(body.loaderImageUrl),
       storage_mode: body.storageMode === "supabase" ? "supabase" : "local",
+      allow_signup: body.allowSignup !== undefined ? body.allowSignup : true,
       updated_at: new Date().toISOString(),
     };
 

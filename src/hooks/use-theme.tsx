@@ -39,6 +39,8 @@ interface ThemeContextValue {
   setLoaderImageUrl: (url: string | null) => void;
   storageMode: "local" | "supabase";
   setStorageMode: (mode: "local" | "supabase") => void;
+  allowSignup: boolean;
+  setAllowSignup: (allow: boolean) => void;
   persistSettings: (settings: {
     theme: ThemeId;
     customColor: string;
@@ -50,6 +52,7 @@ interface ThemeContextValue {
     loaderType: "shimmer" | "custom";
     loaderImageUrl: string | null;
     storageMode: "local" | "supabase";
+    allowSignup: boolean;
   }) => Promise<void>;
 }
 
@@ -99,6 +102,7 @@ interface InitialThemeSettings {
   loader_type?: string;
   loader_image_url?: string;
   storage_mode?: string;
+  allow_signup?: boolean;
 }
 
 export function ThemeProvider({
@@ -142,6 +146,9 @@ export function ThemeProvider({
   );
   const [storageMode, setStorageModeState] = useState<"local" | "supabase">(
     (initialSettings?.storage_mode as "local" | "supabase") || "local"
+  );
+  const [allowSignup, setAllowSignupState] = useState<boolean>(
+    initialSettings?.allow_signup !== undefined ? initialSettings.allow_signup : true
   );
 
   const setStorageMode = useCallback((mode: "local" | "supabase") => {
@@ -223,6 +230,7 @@ export function ThemeProvider({
           setLoaderTypeState((appSettings.loader_type as "shimmer" | "custom") || "shimmer");
           setLoaderImageUrlState(getPublicStorageUrl(appSettings.loader_image_url));
           setStorageModeState((appSettings.storage_mode as "local" | "supabase") || "local");
+          setAllowSignupState(appSettings.allow_signup !== undefined ? appSettings.allow_signup : true);
 
           if (typeof document !== "undefined") {
             document.documentElement.dataset.theme = appSettings.theme || DEFAULT_THEME;
@@ -333,6 +341,13 @@ export function ThemeProvider({
     []
   );
 
+  const setAllowSignup = useCallback(
+    (allow: boolean) => {
+      setAllowSignupState(allow);
+    },
+    []
+  );
+
   const persistSettings = useCallback(async (settings: {
     theme: ThemeId;
     customColor: string;
@@ -344,6 +359,7 @@ export function ThemeProvider({
     loaderType: "shimmer" | "custom";
     loaderImageUrl: string | null;
     storageMode: "local" | "supabase";
+    allowSignup: boolean;
   }) => {
     try {
       const res = await fetch("/api/appearance/settings", {
@@ -368,6 +384,7 @@ export function ThemeProvider({
       setLoaderTypeState(settings.loaderType);
       setLoaderImageUrlState(settings.loaderImageUrl);
       setStorageModeState(settings.storageMode);
+      setAllowSignupState(settings.allowSignup);
 
       if (typeof document !== "undefined") {
         document.documentElement.dataset.theme = settings.theme;
@@ -413,6 +430,8 @@ export function ThemeProvider({
         setLoaderImageUrl,
         storageMode,
         setStorageMode,
+        allowSignup,
+        setAllowSignup,
         persistSettings,
       }}
     >
@@ -445,6 +464,8 @@ export function useTheme(): ThemeContextValue {
       setLoaderImageUrl: () => { },
       storageMode: "local",
       setStorageMode: () => { },
+      allowSignup: true,
+      setAllowSignup: () => { },
       persistSettings: async () => { },
     };
   }

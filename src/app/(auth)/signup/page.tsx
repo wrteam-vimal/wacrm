@@ -28,7 +28,7 @@ export default function SignupPage() {
 }
 
 function SignupPageInner() {
-  const { logoUrl, showLogo, titleText } = useTheme();
+  const { logoUrl, showLogo, titleText, allowSignup = true } = useTheme();
   const searchParams = useSearchParams();
   // When the user lands here from `/join/<token>` we carry the
   // invite token in the query so it survives the signup → email
@@ -90,6 +90,39 @@ function SignupPageInner() {
     setSuccess(true);
     setLoading(false);
   };
+
+  if (!allowSignup && !inviteToken) {
+    return (
+      <Card className="w-full border-slate-800/80 bg-slate-900/40 backdrop-blur-xl shadow-2xl">
+        <CardHeader className="items-center text-center pb-2">
+          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-slate-800/80 p-2 border border-slate-700/60 shadow-inner">
+            {logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logoUrl} alt={titleText} className="h-10 w-10 object-contain" />
+            ) : (
+              <MessageSquare className="h-7 w-7 text-primary" />
+            )}
+          </div>
+          <CardTitle className="text-xl text-white tracking-tight">
+            Registration Closed
+          </CardTitle>
+          <CardDescription className="text-slate-400 text-xs mt-2 leading-relaxed">
+            Public registration is currently disabled for this instance. If you have been invited to a workspace, please use the invitation link sent to you by the administrator.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-4">
+          <Link href="/login">
+            <Button
+              variant="outline"
+              className="w-full border-slate-700/80 text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+            >
+              Go to sign in
+            </Button>
+          </Link>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (success) {
     return (
