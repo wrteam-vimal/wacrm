@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "sonner";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { DEFAULT_THEME, getPublicStorageUrl } from "@/lib/themes";
@@ -297,6 +298,7 @@ export default async function RootLayout({
               },
             }}
           />
+          <Analytics />
         </ThemeProvider>
       </body>
     </html>
