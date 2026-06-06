@@ -41,6 +41,13 @@ export async function POST(req: Request) {
       );
     }
 
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return NextResponse.json(
+        { error: "SUPABASE_SERVICE_ROLE_KEY is not configured on the server. Please add it to your environment variables." },
+        { status: 500 }
+      );
+    }
+
     const admin = adminClient();
 
     // 1. Create the user in auth.users

@@ -78,10 +78,24 @@ export async function POST(request: Request) {
     }
   }
 
+  const { data: profile, error: profileErr } = await supabase
+    .from('profiles')
+    .select('account_id')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (profileErr || !profile?.account_id) {
+    return NextResponse.json(
+      { error: 'Profile is not linked to an account.' },
+      { status: 403 }
+    )
+  }
+
   const admin = supabaseAdmin()
   const { data: automation, error: insertErr } = await admin
     .from('automations')
     .insert({
+      account_id: profile.account_id,
       user_id: user.id,
       name: effectiveName,
       description: effectiveDescription ?? null,

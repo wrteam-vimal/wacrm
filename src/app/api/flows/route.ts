@@ -14,7 +14,7 @@ import { getFlowTemplate } from '@/lib/flows/templates'
  */
 
 async function requireUser(): Promise<
-  | { ok: true; userId: string; supabase: Awaited<ReturnType<typeof createClient>> }
+  | { ok: true; userId: string; accountId: string; supabase: Awaited<ReturnType<typeof createClient>> }
   | { ok: false; status: number; body: { error: string } }
 > {
   const supabase = await createClient()
@@ -24,7 +24,15 @@ async function requireUser(): Promise<
   if (!user) {
     return { ok: false, status: 401, body: { error: 'Unauthorized' } }
   }
-  return { ok: true, userId: user.id, supabase }
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('account_id')
+    .eq('user_id', user.id)
+    .maybeSingle()
+  if (error || !profile?.account_id) {
+    return { ok: false, status: 403, body: { error: 'Profile is not linked to an account.' } }
+  }
+  return { ok: true, userId: user.id, accountId: profile.account_id, supabase }
 }
 
 export async function GET() {
@@ -49,7 +57,7 @@ export async function POST(request: Request) {
   if (!guard.ok) {
     return NextResponse.json(guard.body, { status: guard.status })
   }
-  const { userId } = guard
+  const { userId, accountId } = guard
 
   const body = (await request.json().catch(() => null)) as
     | {
@@ -84,6 +92,7 @@ export async function POST(request: Request) {
     const { data: flow, error: flowErr } = await admin
       .from('flows')
       .insert({
+        account_id: accountId,
         user_id: userId,
         name: body.name?.trim() || template.name,
         description: template.description,
@@ -132,6 +141,7 @@ export async function POST(request: Request) {
   const { data, error } = await admin
     .from('flows')
     .insert({
+      account_id: accountId,
       user_id: userId,
       name: body.name.trim(),
       description: body.description ?? null,

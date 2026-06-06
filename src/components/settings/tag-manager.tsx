@@ -32,7 +32,7 @@ const PRESET_COLORS = [
 
 export function TagManager() {
   const supabase = createClient();
-  const { user, loading: authLoading } = useAuth();
+  const { user, accountId, loading: authLoading } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [tags, setTags] = useState<Tag[]>([]);
@@ -46,22 +46,22 @@ export function TagManager() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user) {
+    if (!accountId) {
       setLoading(false);
       return;
     }
-    fetchTags(user.id);
+    fetchTags(accountId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, user?.id]);
+  }, [authLoading, accountId]);
 
-  async function fetchTags(userId: string) {
+  async function fetchTags(acctId: string) {
     try {
       setLoading(true);
 
       const { data, error } = await supabase
         .from('tags')
         .select('*')
-        .eq('user_id', userId)
+        .eq('account_id', acctId)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
@@ -90,6 +90,7 @@ export function TagManager() {
       const { error } = await supabase
         .from('tags')
         .insert({
+          account_id: accountId,
           user_id: user.id,
           name: newTagName.trim(),
           color: selectedColor,
@@ -101,7 +102,7 @@ export function TagManager() {
       setDialogOpen(false);
       setNewTagName('');
       setSelectedColor(PRESET_COLORS[3].value);
-      if (user) await fetchTags(user.id);
+      if (accountId) await fetchTags(accountId);
     } catch (err) {
       console.error('Create error:', err);
       toast.error('Failed to create tag');

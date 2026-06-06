@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import { MessageTemplate } from '@/types';
 import { Step1ChooseTemplate } from '@/components/broadcasts/step1-choose-template';
@@ -22,6 +23,7 @@ const steps = [
 export default function NewBroadcastPage() {
   const router = useRouter();
   const { createAndSendBroadcast, isProcessing, progress } = useBroadcastSending();
+  const { accountId } = useAuth();
 
   const [currentStep, setCurrentStep] = useState(0);
   const [template, setTemplate] = useState<MessageTemplate | null>(null);
@@ -92,6 +94,7 @@ export default function NewBroadcastPage() {
     }
 
     const { error } = await supabase.from('broadcasts').insert({
+      account_id: accountId,
       user_id: user.id,
       name: name.trim(),
       template_name: template.name,

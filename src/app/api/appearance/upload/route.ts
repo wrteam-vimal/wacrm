@@ -156,6 +156,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (storageMode === "supabase" && !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return NextResponse.json(
+        { error: "SUPABASE_SERVICE_ROLE_KEY is not configured on the server. Please add it to your environment variables." },
+        { status: 500 }
+      );
+    }
+
     let url: string;
     if (storageMode === "supabase") {
       url = await uploadSupabase(file, type, oldUrl);

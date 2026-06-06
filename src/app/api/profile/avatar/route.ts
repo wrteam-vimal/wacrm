@@ -43,7 +43,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const admin = adminClient();
+    // Fall back to the user's authenticated client if the service role key is not configured.
+    // Since the path starts with `${user.id}/`, the user's client is permitted by storage RLS.
+    const admin = process.env.SUPABASE_SERVICE_ROLE_KEY ? adminClient() : supabase;
 
     // Delete the old avatar file to avoid orphaned objects.
     if (oldPath) {
@@ -107,7 +109,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Missing path" }, { status: 400 });
     }
 
-    const admin = adminClient();
+    const admin = process.env.SUPABASE_SERVICE_ROLE_KEY ? adminClient() : supabase;
     await admin.storage.from(BUCKET).remove([path]);
 
     return NextResponse.json({ success: true });

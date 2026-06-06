@@ -19,11 +19,14 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 
+import { useAuth } from "@/hooks/use-auth";
+
 interface ContactSidebarProps {
   contact: Contact | null;
 }
 
 export function ContactSidebar({ contact }: ContactSidebarProps) {
+  const { accountId } = useAuth();
   const [copied, setCopied] = useState(false);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [notes, setNotes] = useState<ContactNote[]>([]);
@@ -97,6 +100,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
     const { data, error } = await supabase
       .from("contact_notes")
       .insert({
+        account_id: accountId,
         contact_id: contact.id,
         user_id: user?.id,
         note_text: newNote.trim(),
@@ -109,7 +113,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
       setNewNote("");
     }
     setAddingNote(false);
-  }, [contact, newNote]);
+  }, [contact, newNote, accountId]);
 
   if (!contact) {
     return (
