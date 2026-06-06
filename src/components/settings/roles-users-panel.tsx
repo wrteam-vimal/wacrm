@@ -302,7 +302,7 @@ export function RolesUsersPanel() {
   const getUserRoleName = (usr: UserProfile) => {
     if (usr.email === 'wrteam.vimal@gmail.com') return 'Super Admin';
     if (usr.account_role === 'owner') return 'Account Owner';
-    
+
     const associatedRole = Array.isArray(usr.roles) ? usr.roles[0] : usr.roles;
     if (associatedRole) return associatedRole.name;
 
@@ -477,13 +477,12 @@ export function RolesUsersPanel() {
                       </div>
 
                       <div className="flex items-center justify-between gap-4 sm:justify-end">
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-md border ${
-                          isSuperAdmin 
-                            ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
-                            : isOwner
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-md border ${isSuperAdmin
+                          ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                          : isOwner
                             ? 'bg-purple-500/10 text-purple-300 border-purple-500/30'
                             : 'bg-slate-800 text-slate-350 border-slate-700'
-                        }`}>
+                          }`}>
                           {isSuperAdmin ? '👑' : <UserCheck className="size-3" />}
                           {roleNameStr}
                         </span>
@@ -526,7 +525,7 @@ export function RolesUsersPanel() {
 
       {/* CREATE/EDIT ROLE MODAL */}
       <Dialog open={roleDialogOpen} onOpenChange={setRoleDialogOpen}>
-        <DialogContent className="bg-slate-900 border border-slate-800 text-slate-100 max-w-2xl overflow-y-auto max-h-[90vh]">
+        <DialogContent className="bg-slate-900 border border-slate-800 text-slate-100 sm:max-w-4xl overflow-y-auto max-h-[90vh]">
           <DialogHeader>
             <DialogTitle className="text-white flex items-center gap-2">
               <Shield className="size-5 text-primary" />
