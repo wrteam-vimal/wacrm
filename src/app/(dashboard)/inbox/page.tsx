@@ -65,6 +65,13 @@ export default function InboxPage() {
     null
   );
   /**
+   * The account_id of the current user's profile. Used to add explicit
+   * server-side filters to the Supabase Realtime subscription so events
+   * are scoped to this account without relying on RLS evaluation in the
+   * Realtime service (which requires the JWT to carry the claim).
+   */
+  const [accountId, setAccountId] = useState<string | null>(null);
+  /**
    * Bumped whenever we want children (ConversationList, MessageThread)
    * to refetch from the DB — used as a safety net against missed
    * realtime events. Bumped on WS reconnect and on tab visibility →
@@ -176,9 +183,10 @@ export default function InboxPage() {
     }
   }, []);
 
-  // Check WhatsApp connection status on mount
+  // Load profile (account_id) and check WhatsApp connection status on mount.
+  // Both are done in one effect to avoid a double profile fetch.
   useEffect(() => {
-    const checkConnection = async () => {
+    const init = async () => {
       const supabase = createClient();
       const {
         data: { session },
@@ -198,22 +206,27 @@ export default function InboxPage() {
         .select("account_id")
         .eq("user_id", user.id)
         .maybeSingle();
-      const accountId = profile?.account_id as string | undefined;
-      if (!accountId) {
+      const resolvedAccountId = profile?.account_id as string | undefined;
+      if (!resolvedAccountId) {
         setWhatsappConnected(false);
         return;
       }
 
+      // Expose the account_id so useRealtime can add an explicit
+      // server-side filter — more reliable than RLS-based filtering
+      // in the Realtime service.
+      setAccountId(resolvedAccountId);
+
       const { data } = await supabase
         .from("whatsapp_config")
         .select("status")
-        .eq("account_id", accountId)
+        .eq("account_id", resolvedAccountId)
         .maybeSingle();
 
       setWhatsappConnected(data?.status === "connected");
     };
 
-    checkConnection();
+    init();
   }, []);
 
   // Handle realtime message events
@@ -379,11 +392,18 @@ export default function InboxPage() {
   // reconnect resync: realtime is best-effort and events sent while the
   // WS was disconnected (laptop sleep, network blip, background-tab
   // throttle) are simply lost. We need a way to catch up.
+  //
+  // `accountId` is passed so the subscription uses an explicit server-side
+  // filter (`account_id=eq.<id>`) rather than relying on Supabase's RLS
+  // evaluation in the Realtime service. RLS-based filtering can silently
+  // fail when the user's JWT doesn't carry the account_id claim (e.g.,
+  // sessions created before migration 029 ran).
   const { isConnected } = useRealtime({
-    channelName: "inbox-realtime",
+    channelName: `inbox-realtime-${accountId ?? "pending"}`,
     onMessageEvent: handleMessageEvent,
     onConversationEvent: handleConversationEvent,
     enabled: true,
+    accountId,
   });
 
   /**
@@ -427,6 +447,26 @@ export default function InboxPage() {
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
+
+  /**
+   * Polling fallback — when the Realtime WebSocket is not connected,
+   * refetch every 10 seconds so messages never get stuck indefinitely.
+   * This is a safety net: realtime is the primary delivery path and
+   * handles the sub-second updates; polling catches the gap when the
+   * WS is still connecting or gets dropped.
+   * The interval is cleared (and not started) while realtime is up
+   * so there's zero overhead during normal operation.
+   */
+  useEffect(() => {
+    if (isConnected) return; // realtime is live — no polling needed
+
+    const id = setInterval(() => {
+      setResyncToken((n) => n + 1);
+    }, 10_000);
+
+    return () => clearInterval(id);
+  }, [isConnected]);
+
 
   /**
    * Manual refresh trigger for the thread-header refresh button.

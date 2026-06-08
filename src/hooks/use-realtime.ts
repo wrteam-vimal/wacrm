@@ -16,6 +16,16 @@ interface UseRealtimeOptions {
   onMessageEvent?: (event: RealtimeEvent<Message>) => void;
   onConversationEvent?: (event: RealtimeEvent<Conversation>) => void;
   enabled?: boolean;
+  /**
+   * When supplied the subscription uses explicit server-side filters
+   * (`account_id=eq.<accountId>`) rather than relying on Supabase's
+   * RLS evaluation of the Realtime feed. This is the recommended
+   * approach — RLS evaluation in the Realtime service depends on the
+   * JWT carrying the account_id claim, which can fail if the session
+   * token predates the JWT-claims migration. An explicit filter
+   * always works regardless of JWT contents.
+   */
+  accountId?: string | null;
 }
 
 export function useRealtime({
@@ -23,6 +33,7 @@ export function useRealtime({
   onMessageEvent,
   onConversationEvent,
   enabled = true,
+  accountId,
 }: UseRealtimeOptions) {
   const channelRef = useRef<RealtimeChannel | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -44,13 +55,29 @@ export function useRealtime({
 
     const supabase = createClient();
 
+    // Build explicit account_id filter when we have the value.
+    // This bypasses Supabase Realtime's RLS evaluation entirely,
+    // which is more reliable because:
+    //   a) RLS evaluation in Realtime uses the connection-level JWT,
+    //      which may not carry user_metadata.account_id if the session
+    //      was created before migration 029 ran.
+    //   b) Explicit filters are applied server-side before the event
+    //      is delivered, so there is no chance of a mis-match.
+    const msgFilter = accountId ? `account_id=eq.${accountId}` : undefined;
+    const convFilter = accountId ? `account_id=eq.${accountId}` : undefined;
+
     const channel = supabase
       .channel(channelName)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "messages" },
+        {
+          event: "*",
+          schema: "public",
+          table: "messages",
+          ...(msgFilter ? { filter: msgFilter } : {}),
+        },
         (payload) => {
-          console.log(`[realtime] Message event:`, payload);
+          console.log(`[realtime] Message event:`, payload.eventType, payload.new);
           onMessageRef.current?.({
             eventType: payload.eventType as RealtimeEvent<Message>["eventType"],
             new: payload.new as Message,
@@ -60,9 +87,14 @@ export function useRealtime({
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "conversations" },
+        {
+          event: "*",
+          schema: "public",
+          table: "conversations",
+          ...(convFilter ? { filter: convFilter } : {}),
+        },
         (payload) => {
-          console.log(`[realtime] Conversation event:`, payload);
+          console.log(`[realtime] Conversation event:`, payload.eventType, payload.new);
           onConversationRef.current?.({
             eventType: payload.eventType as RealtimeEvent<Conversation>["eventType"],
             new: payload.new as Conversation,
@@ -86,7 +118,9 @@ export function useRealtime({
       channelRef.current = null;
       setIsConnected(false);
     };
-  }, [channelName, enabled]);
+    // Re-subscribe when the accountId becomes available (async profile load)
+    // so the channel has the correct filter from the first real-data event.
+  }, [channelName, enabled, accountId]);
 
   const unsubscribe = useCallback(() => {
     if (channelRef.current) {
