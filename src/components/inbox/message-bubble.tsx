@@ -17,6 +17,7 @@ import {
 import { format } from "date-fns";
 import { ReplyQuote } from "./reply-quote";
 import { MessageReactions } from "./message-reactions";
+import { formatWhatsAppText } from "@/lib/whatsapp/text-formatter";
 
 interface MessageBubbleProps {
   message: Message;
@@ -120,9 +121,9 @@ function MessageContent({ message }: { message: Message }) {
   switch (message.content_type) {
     case "text":
       return (
-        <p className="whitespace-pre-wrap break-words text-sm">
-          {message.content_text}
-        </p>
+        <div className="text-sm">
+          {formatWhatsAppText(message.content_text || "")}
+        </div>
       );
 
     case "image":
@@ -134,9 +135,9 @@ function MessageContent({ message }: { message: Message }) {
             <MediaUnavailable label="Image" />
           )}
           {message.content_text && (
-            <p className="mt-1 whitespace-pre-wrap break-words text-sm">
-              {message.content_text}
-            </p>
+            <div className="mt-1 text-sm">
+              {formatWhatsAppText(message.content_text)}
+            </div>
           )}
         </div>
       );
@@ -154,9 +155,9 @@ function MessageContent({ message }: { message: Message }) {
             <MediaUnavailable label="Video" />
           )}
           {message.content_text && (
-            <p className="mt-1 whitespace-pre-wrap break-words text-sm">
-              {message.content_text}
-            </p>
+            <div className="mt-1 text-sm">
+              {formatWhatsAppText(message.content_text)}
+            </div>
           )}
         </div>
       );
@@ -198,9 +199,9 @@ function MessageContent({ message }: { message: Message }) {
             Template
           </span>
           {message.content_text && (
-            <p className="mt-1 whitespace-pre-wrap break-words text-sm">
-              {message.content_text}
-            </p>
+            <div className="mt-1 text-sm">
+              {formatWhatsAppText(message.content_text)}
+            </div>
           )}
         </div>
       );
@@ -225,18 +226,18 @@ function MessageContent({ message }: { message: Message }) {
             <CornerDownLeft className="h-3 w-3" />
             Button reply
           </span>
-          <p className="whitespace-pre-wrap break-words text-sm">
-            {message.content_text || "[Interactive reply]"}
-          </p>
+          <div className="text-sm">
+            {formatWhatsAppText(message.content_text || "[Interactive reply]")}
+          </div>
         </div>
       );
     }
 
     default:
       return (
-        <p className="whitespace-pre-wrap break-words text-sm">
-          {message.content_text || "[Unsupported message type]"}
-        </p>
+        <div className="text-sm">
+          {formatWhatsAppText(message.content_text || "[Unsupported message type]")}
+        </div>
       );
   }
 }

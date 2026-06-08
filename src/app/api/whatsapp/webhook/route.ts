@@ -10,6 +10,7 @@ import {
   handleTemplateWebhookChange,
   isTemplateWebhookField,
 } from '@/lib/whatsapp/template-webhook'
+import { sendFcmMessage } from '@/lib/notifications/fcm'
 
 // Lazy-initialized to avoid build-time crash when env vars are missing
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -771,6 +772,20 @@ async function processMessage(
   // so the broadcast's `replied_count` advances (via the aggregate
   // trigger installed in migration 003).
   await flagBroadcastReplyIfAny(accountId, contactRecord.id)
+
+  // Trigger FCM push notifications to all devices linked to this account in a fire-and-forget fashion
+  const notificationBody = contentText || 
+    (message.type ? `Sent an attachment (${message.type})` : 'Sent a message');
+  
+  void sendFcmMessage(accountId, {
+    title: `New message from ${contactName}`,
+    body: notificationBody,
+    data: {
+      conversationId: conversation.id,
+    },
+  }).catch((err) => {
+    console.error('[webhook] Failed to dispatch FCM notifications:', err);
+  });
 
   // ============================================================
   // Flow runner dispatch.

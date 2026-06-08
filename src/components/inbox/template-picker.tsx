@@ -22,6 +22,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { extractVariableIndices } from "@/lib/whatsapp/template-validators";
+import { formatWhatsAppText } from "@/lib/whatsapp/text-formatter";
 
 export interface TemplateSendValues {
   body: string[];
@@ -233,9 +234,9 @@ export function TemplatePicker({
                           </span>
                         )}
                       </div>
-                      <p className="mt-1 line-clamp-2 text-xs text-slate-400">
-                        {t.body_text}
-                      </p>
+                      <div className="mt-1 line-clamp-2 text-xs text-slate-400">
+                        {formatWhatsAppText(t.body_text)}
+                      </div>
                     </div>
                     <ChevronRight className="h-4 w-4 flex-shrink-0 text-slate-500" />
                   </div>
@@ -247,9 +248,9 @@ export function TemplatePicker({
           <div className="space-y-3">
             <div className="rounded-md border border-slate-800 bg-slate-950/50 p-3">
               <p className="mb-1 text-xs text-slate-400">Preview</p>
-              <p className="whitespace-pre-wrap text-sm text-slate-200">
-                {renderBodyPreview(selected.body_text, params)}
-              </p>
+              <div className="text-sm text-slate-200">
+                {formatWhatsAppText(renderBodyPreview(selected.body_text, params))}
+              </div>
               {selected.footer_text && (
                 <p className="mt-2 text-xs italic text-slate-500">
                   {selected.footer_text}

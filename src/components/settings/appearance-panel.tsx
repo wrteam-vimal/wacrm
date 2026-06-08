@@ -125,63 +125,7 @@ export function AppearancePanel() {
   const [uploadingLoader, setUploadingLoader] = useState(false);
   const [tableMissing, setTableMissing] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [clearingCache, setClearingCache] = useState(false);
 
-  const handleClearCache = async () => {
-    if (!canEditSettings) {
-      toast.error("You do not have permission to clear caches");
-      return;
-    }
-
-    setClearingCache(true);
-    const toastId = toast.loading("Clearing system cache...");
-
-    try {
-      // 1. Clear server-side Next.js cache via API
-      const res = await fetch("/api/cache/clear", {
-        method: "POST",
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Server cache clear failed");
-      }
-
-      // 2. Clear client-side sessionStorage
-      sessionStorage.clear();
-
-      // 3. Selectively clear client-side localStorage
-      // We retain keys starting with "sb-" to prevent logging the user out.
-      const keysToKeep = ["sb-"];
-      const keysToRemove: string[] = [];
-
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key) {
-          const shouldKeep = keysToKeep.some((prefix) => key.startsWith(prefix));
-          if (!shouldKeep) {
-            keysToRemove.push(key);
-          }
-        }
-      }
-
-      keysToRemove.forEach((key) => localStorage.removeItem(key));
-
-      toast.success("Cache cleared successfully", { id: toastId });
-
-      // 4. Force window reload to re-fetch/re-apply state
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
-    } catch (err: any) {
-      toast.error("Failed to clear cache", {
-        id: toastId,
-        description: err.message || "An unexpected error occurred",
-      });
-    } finally {
-      setClearingCache(false);
-    }
-  };
 
   // Check if table exists on mount
   useEffect(() => {
@@ -833,36 +777,7 @@ export function AppearancePanel() {
         </Button>
       </div>
 
-      {/* System Cache section */}
-      <section className="rounded-lg border border-slate-800 bg-slate-900/40 p-5 space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h3 className="text-md font-semibold text-white">System Cache</h3>
-            <p className="mt-1 text-sm text-slate-400">
-              Clear the site's local and server-side caches. This will purge Next.js server caches, clear your browser session state, and reload the application.
-            </p>
-          </div>
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={handleClearCache}
-            disabled={clearingCache || !canEditSettings}
-            className="shrink-0 bg-red-950/60 hover:bg-red-900 border border-red-800/80 text-red-200 hover:text-white"
-          >
-            {clearingCache ? (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                Clearing Cache...
-              </>
-            ) : (
-              <>
-                <Trash2 className="mr-2 h-4 w-4" />
-                Clear Cache
-              </>
-            )}
-          </Button>
-        </div>
-      </section>
+
     </div>
   );
 }

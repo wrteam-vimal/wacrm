@@ -80,9 +80,15 @@ const SETTINGS_MODULES = [
   { key: 'manage_users', label: 'Manage Users', desc: 'Create, edit, and delete workspace user accounts' },
 ];
 
-export function RolesUsersPanel() {
+export function RolesUsersPanel({ mode }: { mode?: 'roles' | 'users' }) {
   const { user: currentUser, permissions } = useAuth();
-  const [activeTab, setActiveTab] = useState('roles');
+  const [activeTab, setActiveTab] = useState(mode || 'roles');
+
+  useEffect(() => {
+    if (mode) {
+      setActiveTab(mode);
+    }
+  }, [mode]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -349,16 +355,18 @@ export function RolesUsersPanel() {
   return (
     <div className="space-y-6 mt-4">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="bg-slate-900 border border-slate-800 p-1 rounded-lg">
-          <TabsTrigger value="roles" className="text-slate-400 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-            <Shield className="size-4 mr-2" />
-            Roles Management
-          </TabsTrigger>
-          <TabsTrigger value="users" className="text-slate-400 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-            <UsersRound className="size-4 mr-2" />
-            Users & Members
-          </TabsTrigger>
-        </TabsList>
+        {!mode && (
+          <TabsList className="bg-slate-900 border border-slate-800 p-1 rounded-lg">
+            <TabsTrigger value="roles" className="text-slate-400 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <Shield className="size-4 mr-2" />
+              Roles Management
+            </TabsTrigger>
+            <TabsTrigger value="users" className="text-slate-400 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <UsersRound className="size-4 mr-2" />
+              Users & Members
+            </TabsTrigger>
+          </TabsList>
+        )}
 
         {/* Roles Management Tab */}
         <TabsContent value="roles" className="space-y-4 outline-none">

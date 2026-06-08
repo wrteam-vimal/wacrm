@@ -417,18 +417,25 @@ export function MessageThread({
   }, [messages]);
 
   const handleSend = useCallback(
-    async (text: string, replyToId?: string) => {
+    async (
+      text: string,
+      replyToId?: string,
+      mediaUrl?: string,
+      mediaType?: "image" | "video" | "document",
+    ) => {
       if (!conversation) return;
 
       const tempId = `temp-${Date.now()}`;
+      const msgType = mediaType || "text";
 
-      // Optimistic update — shows the message immediately with "sending" status
+      // Optimistic update — shows the message immediately with sending status
       const optimisticMsg: Message = {
         id: tempId,
         conversation_id: conversation.id,
         sender_type: "agent",
-        content_type: "text",
-        content_text: text,
+        content_type: msgType,
+        content_text: text || undefined,
+        media_url: mediaUrl || undefined,
         status: "sending",
         created_at: new Date().toISOString(),
         reply_to_message_id: replyToId,
@@ -442,8 +449,9 @@ export function MessageThread({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             conversation_id: conversation.id,
-            message_type: "text",
-            content_text: text,
+            message_type: msgType,
+            content_text: text || null,
+            media_url: mediaUrl || null,
             reply_to_message_id: replyToId,
           }),
         });

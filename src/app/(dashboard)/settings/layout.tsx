@@ -10,7 +10,19 @@ interface HeaderContent {
 const PAGE_HEADERS: Record<string, HeaderContent> = {
   '/settings/profile': {
     title: 'Profile Settings',
-    description: 'Manage your personal profile, account password, and active sessions.',
+    description: 'Manage your personal profile, credentials, and details.',
+  },
+  '/settings/password': {
+    title: 'Password Settings',
+    description: 'Update your password and login credentials.',
+  },
+  '/settings/sessions': {
+    title: 'Active Sessions',
+    description: 'Manage and sign out of active device sessions.',
+  },
+  '/settings/fcm-tokens': {
+    title: 'FCM Push Notification Tokens',
+    description: 'Manage Firebase tokens for push notifications.',
   },
   '/settings/whatsapp': {
     title: 'WhatsApp Configuration',
@@ -33,20 +45,32 @@ const PAGE_HEADERS: Record<string, HeaderContent> = {
     description: 'Configure meta tags, Open Graph parameters, and header script injections.',
   },
   '/settings/logs': {
-    title: 'System Logs',
-    description: 'Trace system events, webhook payloads, database insertions, and automation triggers.',
-  },
-  '/settings/webhook-test': {
-    title: 'Webhook Test Tool',
-    description: 'Simulate inbound Meta payloads locally or on Vercel to diagnose communication issues.',
+    title: 'Logs & Diagnostics',
+    description: 'Trace system events, webhook payloads, and diagnose communication issues.',
   },
   '/settings/members': {
     title: 'Members & Sharing',
     description: 'Manage account members, roles, and pending team invitations.',
   },
   '/settings/roles': {
-    title: 'Roles & Users',
-    description: 'Create custom permission roles and manage workspace user access.',
+    title: 'Roles Management',
+    description: 'Create custom permission roles and manage granular access levels.',
+  },
+  '/settings/users': {
+    title: 'Users Directory',
+    description: 'Manage workspace user access and assign permission roles.',
+  },
+  '/settings/quick-messages': {
+    title: 'Quick Messages',
+    description: 'Manage predefined WhatsApp response templates and shortcuts.',
+  },
+  '/settings/menu-order': {
+    title: 'Sidebar Menu Order',
+    description: 'Re-order navigation menu items for your workspace view.',
+  },
+  '/settings/settings-order': {
+    title: 'Settings Card Order',
+    description: 'Customize the placement order of settings dashboard panels.',
   },
 };
 

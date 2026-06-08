@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
-import { LogOut, Menu, Settings as SettingsIcon, User } from "lucide-react";
+import { ChevronLeft, ChevronRight, LogOut, Menu, Settings as SettingsIcon, User, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 import {
   Avatar,
   AvatarFallback,
@@ -39,12 +41,71 @@ interface HeaderProps {
   /** Wired to the shell's drawer state. Used only on mobile — the
    *  hamburger button is hidden on lg+. */
   onOpenSidebar?: () => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
-export function Header({ onOpenSidebar }: HeaderProps) {
+export function Header({ onOpenSidebar, isCollapsed = false, onToggleCollapse }: HeaderProps) {
   const pathname = usePathname();
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, accountRole } = useAuth();
   const title = getPageTitle(pathname);
+
+  const [clearingCache, setClearingCache] = useState(false);
+
+  const handleClearCache = async () => {
+    if (clearingCache) return;
+    const confirm = window.confirm("Are you sure you want to clear system and client cache? This will purge Next.js server caches, clear your browser session state, and reload the application.");
+    if (!confirm) return;
+
+    setClearingCache(true);
+    const toastId = toast.loading("Clearing system cache...");
+
+    try {
+      // 1. Clear server-side Next.js cache via API
+      const res = await fetch("/api/cache/clear", {
+        method: "POST",
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Server cache clear failed");
+      }
+
+      // 2. Clear client-side sessionStorage
+      sessionStorage.clear();
+
+      // 3. Selectively clear client-side localStorage
+      // We retain keys starting with "sb-" to prevent logging the user out.
+      const keysToKeep = ["sb-"];
+      const keysToRemove: string[] = [];
+
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key) {
+          const shouldKeep = keysToKeep.some((prefix) => key.startsWith(prefix));
+          if (!shouldKeep) {
+            keysToRemove.push(key);
+          }
+        }
+      }
+
+      keysToRemove.forEach((key) => localStorage.removeItem(key));
+
+      toast.success("Cache cleared successfully", { id: toastId });
+
+      // 4. Force window reload to re-fetch/re-apply state
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } catch (err: any) {
+      toast.error("Failed to clear cache", {
+        id: toastId,
+        description: err.message || "An unexpected error occurred",
+      });
+    } finally {
+      setClearingCache(false);
+    }
+  };
 
   const initial =
     profile?.full_name?.charAt(0)?.toUpperCase() ??
@@ -63,12 +124,42 @@ export function Header({ onOpenSidebar }: HeaderProps) {
         >
           <Menu className="h-5 w-5" />
         </button>
+
+        {/* Collapse/Expand Sidebar — Desktop only */}
+        <button
+          type="button"
+          onClick={onToggleCollapse}
+          aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className="hidden h-10 w-10 items-center justify-center rounded-md text-slate-300 transition-colors hover:bg-slate-800 hover:text-white lg:flex"
+        >
+          {isCollapsed ? (
+            <ChevronRight className="h-5 w-5" />
+          ) : (
+            <ChevronLeft className="h-5 w-5" />
+          )}
+        </button>
+
         <h1 className="truncate text-base font-semibold text-white sm:text-lg">
           {title}
         </h1>
       </div>
 
-      <DropdownMenu>
+      <div className="flex items-center gap-3">
+        {/* System Cache clear — Desktop only, right side of the header */}
+        {(accountRole === "owner" || accountRole === "admin") && (
+          <button
+            type="button"
+            onClick={handleClearCache}
+            disabled={clearingCache}
+            className="hidden h-9 px-3 items-center justify-center gap-1.5 rounded-lg text-xs font-semibold text-slate-400 border border-slate-800 hover:border-slate-700 hover:text-white hover:bg-slate-900 transition-all lg:flex disabled:opacity-50 select-none cursor-pointer"
+            title="Purge Next.js cache and local storage, then reload"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${clearingCache ? "animate-spin text-primary" : ""}`} />
+            {clearingCache ? "Clearing..." : "Clear Cache"}
+          </button>
+        )}
+
+        <DropdownMenu>
         <DropdownMenuTrigger
           className="flex items-center gap-2 rounded-md px-1 py-1 transition-colors hover:bg-slate-800/70 focus:bg-slate-800/70 focus:outline-none data-popup-open:bg-slate-800/70 sm:gap-3 sm:pl-1 sm:pr-3"
           aria-label="Open account menu"
@@ -134,6 +225,7 @@ export function Header({ onOpenSidebar }: HeaderProps) {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      </div>
     </header>
   );
 }

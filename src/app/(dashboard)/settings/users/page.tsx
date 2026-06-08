@@ -2,7 +2,6 @@
 
 import { RolesUsersPanel } from '@/components/settings/roles-users-panel';
 
-export default function RolesSettingsPage() {
-  return <RolesUsersPanel mode="roles" />;
+export default function UsersSettingsPage() {
+  return <RolesUsersPanel mode="users" />;
 }
-

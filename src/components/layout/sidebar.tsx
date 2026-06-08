@@ -86,84 +86,73 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 interface NavItem {
+  id: string;
   href: string;
   label: string;
   icon: typeof LayoutDashboard;
-  /**
-   * When true, the nav row renders a small "Beta" chip after the label.
-   * Purely informational — doesn't affect routing or access.
-   */
   beta?: boolean;
 }
 
-const navItems: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/inbox", label: "Inbox", icon: MessageSquare },
-  { href: "/contacts", label: "Contacts", icon: Users },
-  { href: "/pipelines", label: "Pipelines", icon: GitBranch },
-  { href: "/broadcasts", label: "Broadcasts", icon: Radio },
-  { href: "/automations", label: "Automations", icon: Zap },
-  { href: "/flows", label: "Flows", icon: Workflow, beta: true },
-];
-
-const bottomNavItems = [
-  { href: "/settings/profile", label: "Settings", icon: Settings },
+const ALL_MENU_ITEMS: NavItem[] = [
+  { id: "dashboard", href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { id: "inbox", href: "/inbox", label: "Inbox", icon: MessageSquare },
+  { id: "contacts", href: "/contacts", label: "Contacts", icon: Users },
+  { id: "pipelines", href: "/pipelines", label: "Pipelines", icon: GitBranch },
+  { id: "broadcasts", href: "/broadcasts", label: "Broadcasts", icon: Radio },
+  { id: "automations", href: "/automations", label: "Automations", icon: Zap },
+  { id: "flows", href: "/flows", label: "Flows", icon: Workflow, beta: true },
+  { id: "settings", href: "/settings", label: "Settings", icon: Settings },
 ];
 
 interface SidebarProps {
   /** Controlled on mobile by the Header's hamburger button. Ignored on lg+. */
   open?: boolean;
   onClose?: () => void;
+  isCollapsed?: boolean;
 }
 
 // Same flag key the Members tab and Settings page use. Flip per
 // profile via Supabase Studio to dogfood the multi-user surface.
 const ACCOUNT_SHARING_FLAG = "account_sharing";
 
-export function Sidebar({ open = false, onClose }: SidebarProps) {
+export function Sidebar({ open = false, onClose, isCollapsed = false }: SidebarProps) {
   const pathname = usePathname();
   const { profile, profileLoading, account, accountRole, signOut, permissions } = useAuth();
   const totalUnread = useTotalUnread();
   const { showLogo, showTitle, logoUrl, titleText } = useTheme();
 
 
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [orderedItems, setOrderedItems] = useState<NavItem[]>(ALL_MENU_ITEMS);
 
-  // Sync isCollapsed with localStorage on mount
   useEffect(() => {
-    const stored = localStorage.getItem("sidebar-collapsed");
-    if (stored !== null) {
-      setIsCollapsed(stored === "true");
-    }
-  }, []);
+    const handleOrderChange = () => {
+      if (profile?.id) {
+        const stored = localStorage.getItem(`wacrm-menu-order-${profile.id}`);
+        if (stored) {
+          try {
+            const order = JSON.parse(stored) as string[];
+            const sorted = [...ALL_MENU_ITEMS].sort((a, b) => {
+              const indexA = order.indexOf(a.id);
+              const indexB = order.indexOf(b.id);
+              if (indexA === -1 && indexB === -1) return 0;
+              if (indexA === -1) return 1;
+              if (indexB === -1) return -1;
+              return indexA - indexB;
+            });
+            setOrderedItems(sorted);
+          } catch (err) {
+            console.error("Failed to parse menu order:", err);
+          }
+        }
+      }
+    };
 
-  const handleToggleCollapse = () => {
-    setIsCollapsed((prev) => {
-      const next = !prev;
-      localStorage.setItem("sidebar-collapsed", String(next));
-      return next;
-    });
-  };
-
-  const [settingsExpanded, setSettingsExpanded] = useState(() =>
-    pathname.startsWith("/settings")
-  );
-
-  // Sync state when pathname transitions to /settings
-  useEffect(() => {
-    if (pathname.startsWith("/settings")) {
-      setSettingsExpanded(true);
-    }
-  }, [pathname]);
-
-  const handleSettingsClick = (e: React.MouseEvent) => {
-    if (pathname.startsWith("/settings")) {
-      e.preventDefault();
-      setSettingsExpanded(!settingsExpanded);
-    } else {
-      setSettingsExpanded(true);
-    }
-  };
+    handleOrderChange();
+    window.addEventListener("wacrm-menu-order-changed", handleOrderChange);
+    return () => {
+      window.removeEventListener("wacrm-menu-order-changed", handleOrderChange);
+    };
+  }, [profile?.id]);
   // Match the settings page's check: only treat the flag as enabled
   // once the profile has finished loading. Without this, the strip
   // would briefly flash absent during the initial profile fetch
@@ -266,452 +255,226 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               <X className="h-5 w-5" />
             </button>
           </div>
+            {/* Main navigation */}
+            <nav className="flex-1 overflow-y-auto px-3 py-4">
+              <ul className="flex flex-col gap-1">
+                {orderedItems.map((item) => {
+                  const key = item.id as keyof typeof permissions;
+                  if (permissions && permissions[key] === false) return null;
 
-        {/* Main navigation */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
-          <ul className="flex flex-col gap-1">
-            {navItems.map((item) => {
-              const key = item.label.toLowerCase() as keyof typeof permissions;
-              if (permissions && permissions[key] === false) return null;
+                  const isActive =
+                    pathname === item.href ||
+                    (item.href !== "/dashboard" && pathname.startsWith(item.href));
 
-              const isActive =
-                pathname === item.href ||
-                (item.href !== "/dashboard" && pathname.startsWith(item.href));
+                  const showUnreadDot =
+                    item.href === "/inbox" && totalUnread > 0 && !isActive;
 
-              const showUnreadDot =
-                item.href === "/inbox" && totalUnread > 0 && !isActive;
-
-              const linkContent = (
-                <div className="relative flex items-center justify-center">
-                  <item.icon className="h-4 w-4 shrink-0" />
-                  {isCollapsed && showUnreadDot && (
-                    <span
-                      aria-label={`${totalUnread} unread conversation${totalUnread === 1 ? "" : "s"}`}
-                      className="absolute -top-1.5 -right-1.5 flex h-2.5 w-2.5"
-                    >
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
-                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
-                    </span>
-                  )}
-                </div>
-              );
-
-              const linkElement = (
-                <Link
-                  href={item.href}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all lg:py-2",
-                    isActive
-                      ? "bg-primary/10 text-primary"
-                      : "text-slate-400 hover:bg-slate-800 hover:text-white",
-                    isCollapsed && "lg:justify-center lg:px-2"
-                  )}
-                >
-                  {isCollapsed ? (
-                    linkContent
-                  ) : (
-                    <>
+                  const linkContent = (
+                    <div className="relative flex items-center justify-center">
                       <item.icon className="h-4 w-4 shrink-0" />
-                      <span className="flex-1">{item.label}</span>
-                      {item.beta && (
-                        <span
-                          aria-label="Beta feature"
-                          className="rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-300"
-                        >
-                          Beta
-                        </span>
-                      )}
-                      {showUnreadDot && (
+                      {isCollapsed && showUnreadDot && (
                         <span
                           aria-label={`${totalUnread} unread conversation${totalUnread === 1 ? "" : "s"}`}
-                          className="relative flex h-2 w-2"
+                          className="absolute -top-1.5 -right-1.5 flex h-2.5 w-2.5"
                         >
                           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
-                          <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+                          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
                         </span>
                       )}
-                    </>
-                  )}
-                </Link>
-              );
+                    </div>
+                  );
 
-              return (
-                <li key={item.href}>
-                  {isCollapsed ? (
-                    <Tooltip>
-                      <TooltipTrigger render={linkElement}>
-                        {linkContent}
-                      </TooltipTrigger>
-                      <TooltipContent side="right">
-                        {item.label}
-                      </TooltipContent>
-                    </Tooltip>
-                  ) : (
-                    linkElement
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-
-          <div className="my-4 border-t border-slate-800" />
-
-          <ul className="flex flex-col gap-1">
-            {bottomNavItems.map((item) => {
-              const isSettingsActive = pathname.startsWith("/settings");
-
-              const linkContent = <item.icon className="h-4 w-4 shrink-0" />;
-
-              const linkElement = (
-                <Link
-                  href={item.href}
-                  onClick={isCollapsed ? undefined : handleSettingsClick}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all lg:py-2",
-                    isSettingsActive
-                      ? "bg-primary/10 text-primary"
-                      : "text-slate-400 hover:bg-slate-800 hover:text-white",
-                    isCollapsed && "lg:justify-center lg:px-2"
-                  )}
-                >
-                  {isCollapsed ? (
-                    linkContent
-                  ) : (
-                    <>
-                      <item.icon className="h-4 w-4 shrink-0" />
-                      <span className="flex-1">{item.label}</span>
-                      {settingsExpanded ? (
-                        <ChevronDown className="h-4 w-4 text-slate-400" />
+                  const linkElement = (
+                    <Link
+                      href={item.href}
+                      className={cn(
+                        "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all lg:py-2",
+                        isActive
+                          ? "bg-primary/10 text-primary"
+                          : "text-slate-400 hover:bg-slate-800 hover:text-white",
+                        isCollapsed && "lg:justify-center lg:px-2"
+                      )}
+                    >
+                      {isCollapsed ? (
+                        linkContent
                       ) : (
-                        <ChevronRight className="h-4 w-4 text-slate-400" />
+                        <>
+                          <item.icon className="h-4 w-4 shrink-0" />
+                          <span className="flex-1">{item.label}</span>
+                          {item.beta && (
+                            <span
+                              aria-label="Beta feature"
+                              className="rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-300"
+                            >
+                              Beta
+                            </span>
+                          )}
+                          {showUnreadDot && (
+                            <span
+                              aria-label={`${totalUnread} unread conversation${totalUnread === 1 ? "" : "s"}`}
+                              className="relative flex h-2 w-2"
+                            >
+                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+                              <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+                            </span>
+                          )}
+                        </>
                       )}
-                    </>
-                  )}
-                </Link>
-              );
+                    </Link>
+                  );
 
-              return (
-                <li key={item.href} className="flex flex-col gap-1">
-                  {isCollapsed ? (
-                    <Tooltip>
-                      <TooltipTrigger render={linkElement}>
-                        {linkContent}
-                      </TooltipTrigger>
-                      <TooltipContent side="right">
-                        {item.label}
-                      </TooltipContent>
-                    </Tooltip>
-                  ) : (
-                    linkElement
-                  )}
-                  {settingsExpanded && !isCollapsed && (
-                    <ul className="ml-7 mt-1 flex flex-col gap-1 border-l border-slate-800 pl-3">
-                      {permissions.settings_profile && (
-                        <li>
-                          <Link
-                            href="/settings/profile"
-                            className={cn(
-                              "block rounded-md py-1.5 px-2 text-xs font-medium transition-colors lg:py-1",
-                              pathname === "/settings/profile"
-                                ? "text-primary bg-primary/5"
-                                : "text-slate-400 hover:text-white hover:bg-slate-800/40"
-                            )}
-                          >
-                            Profile
-                          </Link>
-                        </li>
+                  return (
+                    <li key={item.href}>
+                      {isCollapsed ? (
+                        <Tooltip>
+                          <TooltipTrigger render={linkElement}>
+                            {linkContent}
+                          </TooltipTrigger>
+                          <TooltipContent side="right">
+                            {item.label}
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        linkElement
                       )}
-                      {permissions.settings_whatsapp && (
-                        <li>
-                          <Link
-                            href="/settings/whatsapp"
-                            className={cn(
-                              "block rounded-md py-1.5 px-2 text-xs font-medium transition-colors lg:py-1",
-                              pathname === "/settings/whatsapp"
-                                ? "text-primary bg-primary/5"
-                                : "text-slate-400 hover:text-white hover:bg-slate-800/40"
-                            )}
-                          >
-                            WhatsApp Config
-                          </Link>
-                        </li>
-                      )}
-                      {permissions.settings_templates && (
-                        <li>
-                          <Link
-                            href="/settings/templates"
-                            className={cn(
-                              "block rounded-md py-1.5 px-2 text-xs font-medium transition-colors lg:py-1",
-                              pathname === "/settings/templates"
-                                ? "text-primary bg-primary/5"
-                                : "text-slate-400 hover:text-white hover:bg-slate-800/40"
-                            )}
-                          >
-                            Templates
-                          </Link>
-                        </li>
-                      )}
-                      {permissions.settings_tags && (
-                        <li>
-                          <Link
-                            href="/settings/tags"
-                            className={cn(
-                              "block rounded-md py-1.5 px-2 text-xs font-medium transition-colors lg:py-1",
-                              pathname === "/settings/tags"
-                                ? "text-primary bg-primary/5"
-                                : "text-slate-400 hover:text-white hover:bg-slate-800/40"
-                            )}
-                          >
-                            Tags
-                          </Link>
-                        </li>
-                      )}
-                      {permissions.settings_appearance && (
-                        <li>
-                          <Link
-                            href="/settings/appearance"
-                            className={cn(
-                              "block rounded-md py-1.5 px-2 text-xs font-medium transition-colors lg:py-1",
-                              pathname === "/settings/appearance"
-                                ? "text-primary bg-primary/5"
-                                : "text-slate-400 hover:text-white hover:bg-slate-800/40"
-                            )}
-                          >
-                            Appearance
-                          </Link>
-                        </li>
-                      )}
-                      {permissions.settings_seo && (
-                        <li>
-                          <Link
-                            href="/settings/seo"
-                            className={cn(
-                              "block rounded-md py-1.5 px-2 text-xs font-medium transition-colors lg:py-1",
-                              pathname === "/settings/seo"
-                                ? "text-primary bg-primary/5"
-                                : "text-slate-400 hover:text-white hover:bg-slate-800/40"
-                            )}
-                          >
-                            SEO
-                          </Link>
-                        </li>
-                      )}
-                      {permissions.settings_logs && (
-                        <li>
-                          <Link
-                            href="/settings/logs"
-                            className={cn(
-                              "block rounded-md py-1.5 px-2 text-xs font-medium transition-colors lg:py-1",
-                              pathname === "/settings/logs"
-                                ? "text-primary bg-primary/5"
-                                : "text-slate-400 hover:text-white hover:bg-slate-800/40"
-                            )}
-                          >
-                            Logs
-                          </Link>
-                        </li>
-                      )}
-                      {permissions.settings_webhook_test && (
-                        <li>
-                          <Link
-                            href="/settings/webhook-test"
-                            className={cn(
-                              "block rounded-md py-1.5 px-2 text-xs font-medium transition-colors lg:py-1",
-                              pathname === "/settings/webhook-test"
-                                ? "text-primary bg-primary/5"
-                                : "text-slate-400 hover:text-white hover:bg-slate-800/40"
-                            )}
-                          >
-                            Webhook Test
-                          </Link>
-                        </li>
-                      )}
-                      {(permissions.manage_roles || permissions.manage_users) && (
-                        <li>
-                          <Link
-                            href="/settings/roles"
-                            className={cn(
-                              "block rounded-md py-1.5 px-2 text-xs font-medium transition-colors lg:py-1",
-                              pathname === "/settings/roles"
-                                ? "text-primary bg-primary/5"
-                                : "text-slate-400 hover:text-white hover:bg-slate-800/40"
-                            )}
-                          >
-                            Roles & Users
-                          </Link>
-                        </li>
-                      )}
-                    </ul>
-                  )}
-                </li>
-              );
-            })}
+                    </li>
+                  );
+                })}
+              </ul>
+            </nav>
 
-            {/* Collapse/Expand Toggle Button */}
-            <li className="hidden lg:block">
-              {isCollapsed ? (
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <button
-                        type="button"
-                        onClick={handleToggleCollapse}
-                        className="flex w-full items-center justify-center rounded-lg px-2 py-2 text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
-                      >
-                        <ChevronRight className="h-4 w-4 shrink-0" />
-                      </button>
-                    }
-                  />
-                  <TooltipContent side="right">
-                    Expand Menu
-                  </TooltipContent>
-                </Tooltip>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleToggleCollapse}
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-colors lg:py-2"
-                >
-                  <ChevronLeft className="h-4 w-4 shrink-0" />
-                  <span className="flex-1 text-left">Collapse Menu</span>
-                </button>
-              )}
-            </li>
-          </ul>
-        </nav>
-
-        {/* User section */}
-        <div className="shrink-0 border-t border-slate-800 p-3">
-          {/* Account name display — only surfaced when the user is
+            {/* User section */}
+            <div className="shrink-0 border-t border-slate-800 p-3">
+              {/* Account name display — only surfaced when the user is
               opted into the account_sharing beta flag. For solo
               users (the default) the account is named after them,
               so showing it here would just duplicate the user name
               below. Once the flag is on the user is at minimum
               aware of which shared account they're acting in. */}
-          {accountSharingEnabled && account?.name && !isCollapsed && (
-            <div className="mb-2 flex items-center gap-2 px-3 text-xs text-slate-500">
-              <UsersRound className="size-3.5 shrink-0" />
-              {/* `title=` exposes the full name on hover when it
+              {accountSharingEnabled && account?.name && !isCollapsed && (
+                <div className="mb-2 flex items-center gap-2 px-3 text-xs text-slate-500">
+                  <UsersRound className="size-3.5 shrink-0" />
+                  {/* `title=` exposes the full name on hover when it
                   gets truncated (long account names + narrow
                   sidebars). Cheap a11y win. */}
-              <span className="truncate" title={account.name}>
-                {account.name}
-              </span>
-              {accountRole ? (
-                // Always render the chip — owners used to be
-                // invisible here, which made them indistinguishable
-                // from admins at a glance. Now everyone sees their
-                // role (with a colour cue) regardless of tier.
-                (() => {
-                  const meta = ROLE_CHIP[accountRole];
-                  const Icon = meta.icon;
-                  return (
-                    <span
-                      className={`ml-auto inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${meta.className}`}
-                    >
-                      <Icon className="size-3" />
-                      {meta.label}
-                    </span>
-                  );
-                })()
-              ) : null}
-            </div>
-          )}
-          <DropdownMenu>
-            {isCollapsed ? (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <DropdownMenuTrigger className="flex w-full items-center justify-center rounded-lg px-1 py-2 text-left transition-colors hover:bg-slate-800/60 focus:bg-slate-800/60 focus:outline-none data-popup-open:bg-slate-800/60">
-                      <Avatar className="size-8 shrink-0">
-                        {profile?.avatar_url ? (
-                          <AvatarImage
-                            src={profile.avatar_url}
-                            alt={profile.full_name ?? "Avatar"}
-                          />
-                        ) : null}
-                        <AvatarFallback className="bg-primary/10 text-sm font-medium text-primary">
-                          {profile?.full_name?.charAt(0)?.toUpperCase() ??
-                            profile?.email?.charAt(0)?.toUpperCase() ??
-                            "U"}
-                        </AvatarFallback>
-                      </Avatar>
-                    </DropdownMenuTrigger>
-                  }
-                />
-                <TooltipContent side="right">
-                  <div className="text-xs font-semibold">{profile?.full_name ?? "User"}</div>
-                  <div className="text-[10px] text-slate-400">{profile?.email ?? ""}</div>
-                </TooltipContent>
-              </Tooltip>
-            ) : (
-              <DropdownMenuTrigger className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-slate-800/60 focus:bg-slate-800/60 focus:outline-none data-popup-open:bg-slate-800/60">
-                <Avatar className="size-8 shrink-0">
-                  {profile?.avatar_url ? (
-                    <AvatarImage
-                      src={profile.avatar_url}
-                      alt={profile.full_name ?? "Avatar"}
-                    />
+                  <span className="truncate" title={account.name}>
+                    {account.name}
+                  </span>
+                  {accountRole ? (
+                    // Always render the chip — owners used to be
+                    // invisible here, which made them indistinguishable
+                    // from admins at a glance. Now everyone sees their
+                    // role (with a colour cue) regardless of tier.
+                    (() => {
+                      const meta = ROLE_CHIP[accountRole];
+                      const Icon = meta.icon;
+                      return (
+                        <span
+                          className={`ml-auto inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${meta.className}`}
+                        >
+                          <Icon className="size-3" />
+                          {meta.label}
+                        </span>
+                      );
+                    })()
                   ) : null}
-                  <AvatarFallback className="bg-primary/10 text-sm font-medium text-primary">
-                    {profile?.full_name?.charAt(0)?.toUpperCase() ??
-                      profile?.email?.charAt(0)?.toUpperCase() ??
-                      "U"}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-white">
-                    {profile?.full_name ?? "User"}
-                  </p>
-                  <p className="truncate text-xs text-slate-400">
-                    {profile?.email ?? ""}
-                  </p>
                 </div>
-              </DropdownMenuTrigger>
-            )}
-            <DropdownMenuContent
-              align="end"
-              side="top"
-              sideOffset={6}
-              className="min-w-56 bg-slate-900 text-slate-100 ring-slate-700"
-            >
-              <DropdownMenuItem
-                render={
-                  <Link
-                    href="/settings/profile"
-                    onClick={onClose}
+              )}
+              <DropdownMenu>
+                {isCollapsed ? (
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <DropdownMenuTrigger className="flex w-full items-center justify-center rounded-lg px-1 py-2 text-left transition-colors hover:bg-slate-800/60 focus:bg-slate-800/60 focus:outline-none data-popup-open:bg-slate-800/60">
+                          <Avatar className="size-8 shrink-0">
+                            {profile?.avatar_url ? (
+                              <AvatarImage
+                                src={profile.avatar_url}
+                                alt={profile.full_name ?? "Avatar"}
+                              />
+                            ) : null}
+                            <AvatarFallback className="bg-primary/10 text-sm font-medium text-primary">
+                              {profile?.full_name?.charAt(0)?.toUpperCase() ??
+                                profile?.email?.charAt(0)?.toUpperCase() ??
+                                "U"}
+                            </AvatarFallback>
+                          </Avatar>
+                        </DropdownMenuTrigger>
+                      }
+                    />
+                    <TooltipContent side="right">
+                      <div className="text-xs font-semibold">{profile?.full_name ?? "User"}</div>
+                      <div className="text-[10px] text-slate-400">{profile?.email ?? ""}</div>
+                    </TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <DropdownMenuTrigger className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-slate-800/60 focus:bg-slate-800/60 focus:outline-none data-popup-open:bg-slate-800/60">
+                    <Avatar className="size-8 shrink-0">
+                      {profile?.avatar_url ? (
+                        <AvatarImage
+                          src={profile.avatar_url}
+                          alt={profile.full_name ?? "Avatar"}
+                        />
+                      ) : null}
+                      <AvatarFallback className="bg-primary/10 text-sm font-medium text-primary">
+                        {profile?.full_name?.charAt(0)?.toUpperCase() ??
+                          profile?.email?.charAt(0)?.toUpperCase() ??
+                          "U"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-white">
+                        {profile?.full_name ?? "User"}
+                      </p>
+                      <p className="truncate text-xs text-slate-400">
+                        {profile?.email ?? ""}
+                      </p>
+                    </div>
+                  </DropdownMenuTrigger>
+                )}
+                <DropdownMenuContent
+                  align="end"
+                  side="top"
+                  sideOffset={6}
+                  className="min-w-56 bg-slate-900 text-slate-100 ring-slate-700"
+                >
+                  <DropdownMenuItem
+                    render={
+                      <Link
+                        href="/settings/profile"
+                        onClick={onClose}
+                        className="text-slate-200 focus:bg-slate-800 focus:text-white"
+                      />
+                    }
+                  >
+                    <User className="size-4" />
+                    Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    render={
+                      <Link
+                        href="/settings/whatsapp"
+                        onClick={onClose}
+                        className="text-slate-200 focus:bg-slate-800 focus:text-white"
+                      />
+                    }
+                  >
+                    <Settings className="size-4" />
+                    Settings
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="bg-slate-800" />
+                  <DropdownMenuItem
+                    onClick={signOut}
                     className="text-slate-200 focus:bg-slate-800 focus:text-white"
-                  />
-                }
-              >
-                <User className="size-4" />
-                Profile
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                render={
-                  <Link
-                    href="/settings/whatsapp"
-                    onClick={onClose}
-                    className="text-slate-200 focus:bg-slate-800 focus:text-white"
-                  />
-                }
-              >
-                <Settings className="size-4" />
-                Settings
-              </DropdownMenuItem>
-              <DropdownMenuSeparator className="bg-slate-800" />
-              <DropdownMenuItem
-                onClick={signOut}
-                className="text-slate-200 focus:bg-slate-800 focus:text-white"
-              >
-                <LogOut className="size-4" />
-                Sign out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </aside>
-    </TooltipProvider>
-  </>
+                  >
+                    <LogOut className="size-4" />
+                    Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+        </aside>
+      </TooltipProvider>
+    </>
   );
 }
