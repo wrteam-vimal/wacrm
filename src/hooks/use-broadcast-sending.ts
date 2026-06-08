@@ -230,6 +230,24 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
     }
     const phones = [...uniqueByPhone.keys()];
 
+    // Fetch countries to associate country_id on newly inserted contacts
+    let sortedCountries: { id: string; norm: string }[] = [];
+    try {
+      const { data: dbCountries } = await supabase
+        .from('countries')
+        .select('id, code')
+        .eq('account_id', accountId);
+
+      if (dbCountries && dbCountries.length > 0) {
+        sortedCountries = dbCountries
+          .map((c: any) => ({ id: c.id, norm: c.code.replace(/\D/g, '') }))
+          .filter((c: any) => c.norm.length > 0)
+          .sort((a: any, b: any) => b.norm.length - a.norm.length);
+      }
+    } catch (err) {
+      console.error('Failed to load countries for CSV contact matching:', err);
+    }
+
     // Single round-trip lookup of existing contacts by phone.
     const { data: existing, error: lookupErr } = await supabase
       .from('contacts')
@@ -249,12 +267,23 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
     // has a default payload cap — 200 keeps individual requests small).
     const missing = phones
       .filter((p) => !byPhone.has(p))
-      .map((phone) => ({
-        account_id: accountId,
-        user_id: user.id,
-        phone,
-        name: uniqueByPhone.get(phone)?.name ?? null,
-      }));
+      .map((phone) => {
+        let countryId: string | null = null;
+        const normalizedPhone = phone.replace(/\D/g, '');
+        for (const c of sortedCountries) {
+          if (normalizedPhone.startsWith(c.norm)) {
+            countryId = c.id;
+            break;
+          }
+        }
+        return {
+          account_id: accountId,
+          user_id: user.id,
+          phone,
+          name: uniqueByPhone.get(phone)?.name ?? null,
+          country_id: countryId,
+        };
+      });
 
     const INSERT_CHUNK = 200;
     for (let i = 0; i < missing.length; i += INSERT_CHUNK) {

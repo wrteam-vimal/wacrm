@@ -88,6 +88,19 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<{ imported: number; failed: number } | null>(null);
 
+  const downloadCsvTemplate = () => {
+    const csvContent = "phone,name,email,company\n+12345678900,John Doe,john@example.com,Acme Inc.\n";
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "wacrm_contacts_template.csv");
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   function reset() {
     setFile(null);
     setParsedRows([]);
@@ -130,6 +143,24 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
       const user = session?.user;
       if (!user) throw new Error('Not authenticated');
 
+      // Resolve countries to associate country_id
+      let sortedCountries: { id: string; norm: string }[] = [];
+      try {
+        const { data: dbCountries } = await supabase
+          .from('countries')
+          .select('id, code')
+          .eq('account_id', accountId);
+
+        if (dbCountries && dbCountries.length > 0) {
+          sortedCountries = dbCountries
+            .map((c: any) => ({ id: c.id, norm: c.code.replace(/\D/g, '') }))
+            .filter((c: any) => c.norm.length > 0)
+            .sort((a: any, b: any) => b.norm.length - a.norm.length);
+        }
+      } catch (err) {
+        console.error('Failed to resolve countries for import:', err);
+      }
+
       let imported = 0;
       let failed = 0;
 
@@ -137,14 +168,25 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
       const chunkSize = 50;
       for (let i = 0; i < parsedRows.length; i += chunkSize) {
         const chunk = parsedRows.slice(i, i + chunkSize);
-        const rows = chunk.map((row) => ({
-          account_id: accountId,
-          user_id: user.id,
-          phone: row.phone,
-          name: row.name || null,
-          email: row.email || null,
-          company: row.company || null,
-        }));
+        const rows = chunk.map((row) => {
+          let countryId: string | null = null;
+          const normalizedPhone = row.phone.replace(/\D/g, '');
+          for (const c of sortedCountries) {
+            if (normalizedPhone.startsWith(c.norm)) {
+              countryId = c.id;
+              break;
+            }
+          }
+          return {
+            account_id: accountId,
+            user_id: user.id,
+            phone: row.phone,
+            name: row.name || null,
+            email: row.email || null,
+            company: row.company || null,
+            country_id: countryId,
+          };
+        });
 
         const { data, error } = await supabase
           .from('contacts')
@@ -189,10 +231,22 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
       <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-white">Import Contacts</DialogTitle>
-          <DialogDescription className="text-slate-400">
-            Upload a CSV file with a &quot;phone&quot; column (required). Optional columns:
-            name, email, company.
-          </DialogDescription>
+          <div className="text-slate-400 text-sm space-y-2">
+            <p>
+              Upload a CSV file with a &quot;phone&quot; column (required). Optional columns:
+              name, email, company.
+            </p>
+            <div>
+              <button
+                type="button"
+                onClick={downloadCsvTemplate}
+                className="text-xs text-primary hover:underline inline-flex items-center gap-1 cursor-pointer"
+              >
+                <FileText className="size-3.5" />
+                Download CSV Template
+              </button>
+            </div>
+          </div>
         </DialogHeader>
 
         <div className="space-y-4">

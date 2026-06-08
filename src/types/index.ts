@@ -94,6 +94,7 @@ export interface Contact {
   email?: string;
   company?: string;
   avatar_url?: string;
+  country_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -103,6 +104,14 @@ export interface Tag {
   user_id: string;
   name: string;
   color: string;
+  created_at: string;
+}
+
+export interface Country {
+  id: string;
+  account_id: string;
+  name: string;
+  code: string;
   created_at: string;
 }
 

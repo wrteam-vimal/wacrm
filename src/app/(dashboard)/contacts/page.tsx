@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import type { Contact, Tag, ContactTag } from '@/types';
+import type { Contact, Tag, ContactTag, Country } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -56,6 +57,7 @@ interface ContactWithTags extends Contact {
 
 export default function ContactsPage() {
   const supabase = createClient();
+  const router = useRouter();
   const canEdit = useCan('send-messages');
 
   const [contacts, setContacts] = useState<ContactWithTags[]>([]);
@@ -63,6 +65,11 @@ export default function ContactsPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
+
+  // Filter & Selection
+  const [countries, setCountries] = useState<Country[]>([]);
+  const [selectedCountryId, setSelectedCountryId] = useState<string>('all');
+  const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
 
   // Modals
   const [formOpen, setFormOpen] = useState(false);
@@ -87,6 +94,11 @@ export default function ContactsPage() {
     }
   }, [supabase]);
 
+  const fetchCountries = useCallback(async () => {
+    const { data } = await supabase.from('countries').select('*').order('name');
+    if (data) setCountries(data);
+  }, [supabase]);
+
   const fetchContacts = useCallback(async () => {
     setLoading(true);
 
@@ -102,6 +114,10 @@ export default function ContactsPage() {
     if (search.trim()) {
       const term = `%${search.trim()}%`;
       query = query.or(`name.ilike.${term},phone.ilike.${term},email.ilike.${term}`);
+    }
+
+    if (selectedCountryId && selectedCountryId !== 'all') {
+      query = query.eq('country_id', selectedCountryId);
     }
 
     const { data, count, error } = await query;
@@ -142,7 +158,7 @@ export default function ContactsPage() {
 
     setContacts(enriched);
     setLoading(false);
-  }, [supabase, page, search, tagsMap]);
+  }, [supabase, page, search, tagsMap, selectedCountryId]);
 
   // Load-once-on-mount-ish data fetches. Each setter inside runs
   // inside an async promise completion (Supabase await), not
@@ -155,8 +171,17 @@ export default function ContactsPage() {
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchCountries();
+  }, [fetchCountries]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchContacts();
   }, [fetchContacts]);
+
+  useEffect(() => {
+    setSelectedContactIds([]);
+  }, [page, search, selectedCountryId]);
 
   function openAddForm() {
     setEditContact(null);
@@ -220,6 +245,17 @@ export default function ContactsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {selectedContactIds.length > 0 && (
+            <Button
+              onClick={() => {
+                const ids = selectedContactIds.join(',');
+                router.push(`/broadcasts/new?contactIds=${encodeURIComponent(ids)}`);
+              }}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white border-none"
+            >
+              Send Broadcast ({selectedContactIds.length})
+            </Button>
+          )}
           <GatedButton
             variant="outline"
             canAct={canEdit}
@@ -246,20 +282,37 @@ export default function ContactsPage() {
         <PageLoader type="table" />
       ) : (
         <>
-          {/* Search */}
-          <div className="relative max-w-sm">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
-            <Input
-              value={search}
+          {/* Search & Country Filter */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative max-w-sm flex-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
+              <Input
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  // Reset pagination when the query changes — the result
+                  // set shrinks/grows, page N may no longer be valid.
+                  setPage(0);
+                }}
+                placeholder="Search by name, phone, or email..."
+                className="pl-8 bg-slate-900 border-slate-700 text-white placeholder:text-slate-500"
+              />
+            </div>
+            <select
+              value={selectedCountryId}
               onChange={(e) => {
-                setSearch(e.target.value);
-                // Reset pagination when the query changes — the result
-                // set shrinks/grows, page N may no longer be valid.
+                setSelectedCountryId(e.target.value);
                 setPage(0);
               }}
-              placeholder="Search by name, phone, or email..."
-              className="pl-8 bg-slate-900 border-slate-700 text-white placeholder:text-slate-500"
-            />
+              className="h-10 rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm text-white outline-none focus:border-primary focus:ring-1 focus:ring-primary w-full sm:w-[200px] cursor-pointer"
+            >
+              <option value="all">All Countries</option>
+              {countries.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({c.code})
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Table */}
@@ -267,6 +320,20 @@ export default function ContactsPage() {
             <Table>
               <TableHeader>
                 <TableRow className="border-slate-800 hover:bg-transparent">
+                  <TableHead className="w-12 text-slate-400">
+                    <input
+                      type="checkbox"
+                      checked={contacts.length > 0 && contacts.every((c) => selectedContactIds.includes(c.id))}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedContactIds(contacts.map((c) => c.id));
+                        } else {
+                          setSelectedContactIds([]);
+                        }
+                      }}
+                      className="rounded border-slate-700 bg-slate-800 text-primary focus:ring-primary focus:ring-offset-slate-900 size-4 cursor-pointer"
+                    />
+                  </TableHead>
                   <TableHead className="text-slate-400">Name</TableHead>
                   <TableHead className="text-slate-400">Phone</TableHead>
                   <TableHead className="text-slate-400 hidden md:table-cell">Email</TableHead>
@@ -279,7 +346,7 @@ export default function ContactsPage() {
               <TableBody>
                 {contacts.length === 0 ? (
                   <TableRow className="border-slate-800">
-                    <TableCell colSpan={7} className="text-center py-12">
+                    <TableCell colSpan={8} className="text-center py-12">
                       <div className="flex flex-col items-center gap-2">
                         <Users className="size-8 text-slate-600" />
                         <p className="text-sm text-slate-500">
@@ -306,6 +373,20 @@ export default function ContactsPage() {
                       className="border-slate-800 hover:bg-slate-900/50 cursor-pointer"
                       onClick={() => openDetail(contact.id)}
                     >
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedContactIds.includes(contact.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedContactIds((prev) => [...prev, contact.id]);
+                            } else {
+                              setSelectedContactIds((prev) => prev.filter((id) => id !== contact.id));
+                            }
+                          }}
+                          className="rounded border-slate-700 bg-slate-800 text-primary focus:ring-primary focus:ring-offset-slate-900 size-4 cursor-pointer"
+                        />
+                      </TableCell>
                       <TableCell className="text-white font-medium">
                         {contact.name || <span className="text-slate-500 italic">Unnamed</span>}
                       </TableCell>

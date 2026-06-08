@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
@@ -11,7 +11,7 @@ import { Step2SelectAudience } from '@/components/broadcasts/step2-select-audien
 import { Step3Personalize } from '@/components/broadcasts/step3-personalize';
 import { Step4ScheduleSend } from '@/components/broadcasts/step4-schedule-send';
 import { useBroadcastSending } from '@/hooks/use-broadcast-sending';
-import { Check } from 'lucide-react';
+import { Check, Loader2 } from 'lucide-react';
 
 const steps = [
   { label: 'Template', key: 'template' },
@@ -21,7 +21,22 @@ const steps = [
 ] as const;
 
 export default function NewBroadcastPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-2">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-sm text-slate-400">Loading Wizard...</p>
+      </div>
+    }>
+      <NewBroadcastWizard />
+    </Suspense>
+  );
+}
+
+function NewBroadcastWizard() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const contactIdsParam = searchParams?.get('contactIds');
   const { createAndSendBroadcast, isProcessing, progress } = useBroadcastSending();
   const { accountId } = useAuth();
 
@@ -43,6 +58,32 @@ export default function NewBroadcastPage() {
   >({});
   const [name, setName] = useState('');
 
+  useEffect(() => {
+    if (!contactIdsParam) return;
+    const idsString = contactIdsParam;
+    async function loadPreselectedContacts() {
+      const ids = idsString.split(',');
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('contacts')
+        .select('phone, name')
+        .in('id', ids);
+
+      if (error) {
+        toast.error('Failed to load pre-selected contacts');
+        return;
+      }
+
+      if (data && data.length > 0) {
+        setAudience({
+          type: 'csv',
+          csvContacts: data.map((c) => ({ phone: c.phone, name: c.name || undefined })),
+        });
+      }
+    }
+    loadPreselectedContacts();
+  }, [contactIdsParam]);
+
   async function handleSend() {
     if (!template) return;
 
@@ -61,23 +102,12 @@ export default function NewBroadcastPage() {
       });
       router.push(`/broadcasts/${broadcastId}`);
     } catch (err) {
-      // Previously swallowed with console.error — the wizard would
-      // just no-op, leaving the user confused. Surface the reason.
       const message = err instanceof Error ? err.message : 'Broadcast failed';
       console.error('Broadcast failed:', err);
       toast.error(message);
     }
   }
 
-  /**
-   * Writes a draft broadcast row — no recipients, no sending. The user
-   * can revisit it via the list page to finish the flow later. We
-   * don't persist the in-progress audience/variable config here
-   * because the current schema doesn't carry it past `audience_filter`
-   * and `template_variables`; those are enough for the user to
-   * recognize the draft but not to exactly round-trip into the wizard.
-   * A full resume-draft UX is a future polish.
-   */
   async function handleSaveDraft() {
     if (!template || !name.trim()) {
       toast.error('Give the broadcast a name before saving a draft.');
@@ -223,3 +253,4 @@ export default function NewBroadcastPage() {
     </div>
   );
 }
+

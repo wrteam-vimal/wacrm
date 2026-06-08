@@ -19,6 +19,7 @@ import {
   ListOrdered,
   Sliders,
   ArrowRight,
+  Globe,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent } from '@/components/ui/card';
@@ -165,6 +166,14 @@ export default function SettingsDashboardPage() {
       href: '/settings/settings-order',
       icon: Sliders,
       iconBg: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
+    },
+    {
+      id: 'countries',
+      title: 'Countries & Dial Codes',
+      description: 'Manage country names and code prefixes for phone numbers.',
+      href: '/settings/countries',
+      icon: Globe,
+      iconBg: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
     },
   ];
 

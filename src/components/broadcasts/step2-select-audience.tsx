@@ -389,6 +389,94 @@ export function Step2SelectAudience({
         </div>
       )}
 
+      {audience.type === 'csv' && (
+        <div className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+          <p className="text-sm font-medium text-white">CSV Contact List</p>
+          {audience.csvContacts && audience.csvContacts.length > 0 ? (
+            <div className="space-y-3">
+              <div className="rounded-lg border border-slate-700 p-3 bg-slate-800/50 flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-slate-300 font-medium">
+                    {audience.csvContacts.length} contact(s) pre-selected / uploaded
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    These contacts will receive this broadcast.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onUpdate({ ...audience, csvContacts: [] })}
+                  className="border-slate-600 text-slate-400 hover:text-white"
+                >
+                  Clear Selection
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center border border-dashed border-slate-700 rounded-lg p-6 hover:border-primary/50 transition-colors">
+              <Upload className="h-8 w-8 text-slate-500 mb-2" />
+              <p className="text-sm text-slate-300">Upload CSV file</p>
+              <p className="text-xs text-slate-500 mt-1 mb-3">
+                Include a &quot;phone&quot; header (required) and &quot;name&quot; (optional)
+              </p>
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                id="audience-csv-file"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const text = await file.text();
+                  const lines = text.trim().split(/\r?\n/);
+                  if (lines.length < 2) {
+                    alert("Empty file or invalid CSV");
+                    return;
+                  }
+                  const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/["']/g, ''));
+                  const phoneIdx = headers.indexOf('phone');
+                  if (phoneIdx === -1) {
+                    alert("CSV must have a 'phone' column header");
+                    return;
+                  }
+                  const nameIdx = headers.indexOf('name');
+                  const parsed: { phone: string; name?: string }[] = [];
+                  for (let i = 1; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (!line) continue;
+                    const values = line.split(',').map(v => v.trim().replace(/["']/g, ''));
+                    const phone = values[phoneIdx];
+                    if (phone) {
+                      parsed.push({
+                        phone,
+                        name: nameIdx >= 0 ? values[nameIdx] || undefined : undefined
+                      });
+                    }
+                  }
+                  if (parsed.length === 0) {
+                    alert("No contacts found in CSV");
+                    return;
+                  }
+                  onUpdate({
+                    ...audience,
+                    csvContacts: parsed
+                  });
+                }}
+                className="hidden"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => document.getElementById('audience-csv-file')?.click()}
+                className="border-slate-700 text-slate-300 hover:bg-slate-800"
+              >
+                Select File
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Exclude list — applies regardless of audience type */}
       <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
         <div className="mb-3 flex items-center gap-2">

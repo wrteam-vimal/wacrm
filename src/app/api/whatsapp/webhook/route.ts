@@ -1241,6 +1241,31 @@ async function findOrCreateContact(
     return null
   }
 
+  // Resolve matching country_id
+  let countryId: string | null = null
+  try {
+    const { data: dbCountries } = await supabaseAdmin()
+      .from('countries')
+      .select('id, code')
+      .eq('account_id', accountId)
+
+    if (dbCountries && dbCountries.length > 0) {
+      const sorted = dbCountries
+        .map((c: any) => ({ id: c.id, norm: c.code.replace(/\D/g, '') }))
+        .filter((c: any) => c.norm.length > 0)
+        .sort((a: any, b: any) => b.norm.length - a.norm.length)
+
+      for (const c of sorted) {
+        if (normalizedSender.startsWith(c.norm)) {
+          countryId = c.id
+          break
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Failed to match country for webhook contact:', err)
+  }
+
   const existingContact = contacts?.find((c: ContactRow) => phonesMatch(c.phone, phone))
 
   if (existingContact) {
@@ -1250,6 +1275,9 @@ async function findOrCreateContact(
     if (name && name !== existingContact.name) patch.name = name
     // Store the canonical wa_id from Meta if we don't have it yet
     if (waId && !existingContact.wa_id) patch.wa_id = waId
+    // Store country_id if missing
+    if (countryId && !existingContact.country_id) patch.country_id = countryId
+    
     if (Object.keys(patch).length > 0) {
       patch.updated_at = new Date().toISOString()
       await supabaseAdmin()
@@ -1257,18 +1285,20 @@ async function findOrCreateContact(
         .update(patch)
         .eq('id', existingContact.id)
     }
-    return { contact: existingContact, wasCreated: false }
+    return { contact: { ...existingContact, ...patch }, wasCreated: false }
   }
 
   // Create new contact
+  const formattedPhone = phone.startsWith('+') ? phone : `+${phone}`
   const { data: newContact, error: createError } = await supabaseAdmin()
     .from('contacts')
     .insert({
       account_id: accountId,
       user_id: configOwnerUserId,
-      phone,
-      name: name || phone,
+      phone: formattedPhone,
+      name: name || formattedPhone,
       wa_id: waId || null,
+      country_id: countryId,
     })
     .select()
     .single()

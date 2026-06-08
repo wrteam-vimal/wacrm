@@ -94,6 +94,32 @@ export function ContactForm({
       const user = session?.user;
       if (!user) throw new Error('Not authenticated');
 
+      // Resolve country_id based on phone prefix
+      let countryId: string | null = null;
+      try {
+        const normalizedPhone = phone.trim().replace(/\D/g, '');
+        const { data: dbCountries } = await supabase
+          .from('countries')
+          .select('id, code')
+          .eq('account_id', accountId);
+
+        if (dbCountries && dbCountries.length > 0) {
+          const sorted = dbCountries
+            .map((c: any) => ({ id: c.id, norm: c.code.replace(/\D/g, '') }))
+            .filter((c: any) => c.norm.length > 0)
+            .sort((a: any, b: any) => b.norm.length - a.norm.length);
+
+          for (const c of sorted) {
+            if (normalizedPhone.startsWith(c.norm)) {
+              countryId = c.id;
+              break;
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to resolve country_id:', err);
+      }
+
       let contactId = contact?.id;
 
       if (isEdit && contactId) {
@@ -104,6 +130,7 @@ export function ContactForm({
             phone: phone.trim(),
             email: email.trim() || null,
             company: company.trim() || null,
+            country_id: countryId,
             updated_at: new Date().toISOString(),
           })
           .eq('id', contactId);
@@ -118,6 +145,7 @@ export function ContactForm({
             phone: phone.trim(),
             email: email.trim() || null,
             company: company.trim() || null,
+            country_id: countryId,
           })
           .select('id')
           .single();
