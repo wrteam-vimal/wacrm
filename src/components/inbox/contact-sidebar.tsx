@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import type { Contact, Deal, ContactNote, Tag } from "@/types";
+import type { Contact, Deal, ContactNote, Tag, PipelineStage } from "@/types";
 import {
   Phone,
   Mail,
@@ -14,12 +14,15 @@ import {
   DollarSign,
   StickyNote,
   Plus,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
-
+import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
+import { DealForm } from "@/components/pipelines/deal-form";
 
 interface ContactSidebarProps {
   contact: Contact | null;
@@ -33,6 +36,17 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
   const [tags, setTags] = useState<(Tag & { contact_tag_id: string })[]>([]);
   const [newNote, setNewNote] = useState("");
   const [addingNote, setAddingNote] = useState(false);
+
+  // Notes editing states
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingNoteText, setEditingNoteText] = useState("");
+  const [updatingNote, setUpdatingNote] = useState(false);
+
+  // Deals states
+  const [pipelines, setPipelines] = useState<any[]>([]);
+  const [stages, setStages] = useState<PipelineStage[]>([]);
+  const [dealFormOpen, setDealFormOpen] = useState(false);
+  const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
 
   const fetchContactData = useCallback(async () => {
     if (!contact) return;
@@ -77,6 +91,29 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
     fetchContactData();
   }, [fetchContactData]);
 
+  // Load pipelines and stages on mount/auth load
+  useEffect(() => {
+    if (!accountId) return;
+    async function loadPipelinesAndStages() {
+      const supabase = createClient();
+      const { data: pipelineData } = await supabase
+        .from("pipelines")
+        .select("*")
+        .order("created_at");
+
+      if (pipelineData && pipelineData.length > 0) {
+        setPipelines(pipelineData);
+        const { data: stageData } = await supabase
+          .from("pipeline_stages")
+          .select("*")
+          .eq("pipeline_id", pipelineData[0].id)
+          .order("position");
+        if (stageData) setStages(stageData);
+      }
+    }
+    loadPipelinesAndStages();
+  }, [accountId]);
+
   const handleCopyPhone = useCallback(async () => {
     if (!contact?.phone) return;
     await navigator.clipboard.writeText(contact.phone);
@@ -114,6 +151,43 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
     }
     setAddingNote(false);
   }, [contact, newNote, accountId]);
+
+  const handleUpdateNote = useCallback(async (noteId: string) => {
+    if (!editingNoteText.trim()) return;
+    setUpdatingNote(true);
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("contact_notes")
+      .update({ note_text: editingNoteText.trim() })
+      .eq("id", noteId)
+      .select()
+      .single();
+
+    if (!error && data) {
+      setNotes((prev) => prev.map((n) => (n.id === noteId ? data : n)));
+      setEditingNoteId(null);
+      setEditingNoteText("");
+      toast.success("Note updated");
+    } else {
+      toast.error("Failed to update note");
+    }
+    setUpdatingNote(false);
+  }, [editingNoteText]);
+
+  const handleDeleteNote = useCallback(async (noteId: string) => {
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("contact_notes")
+      .delete()
+      .eq("id", noteId);
+
+    if (!error) {
+      setNotes((prev) => prev.filter((n) => n.id !== noteId));
+      toast.success("Note deleted");
+    } else {
+      toast.error("Failed to delete note");
+    }
+  }, []);
 
   if (!contact) {
     return (
@@ -208,9 +282,25 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
 
           {/* Active Deals */}
           <div>
-            <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-slate-500">
-              <DollarSign className="h-3 w-3" />
-              Active Deals
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-slate-500">
+                <DollarSign className="h-3 w-3" />
+                Active Deals
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (pipelines.length === 0) {
+                    toast.error("Please configure a pipeline in Settings first.");
+                    return;
+                  }
+                  setEditingDeal(null);
+                  setDealFormOpen(true);
+                }}
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
             </div>
             <div className="mt-2 space-y-2">
               {deals.length === 0 ? (
@@ -219,9 +309,13 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
                 deals.map((deal) => (
                   <div
                     key={deal.id}
-                    className="rounded-lg bg-slate-800 px-3 py-2"
+                    onClick={() => {
+                      setEditingDeal(deal);
+                      setDealFormOpen(true);
+                    }}
+                    className="group relative rounded-lg bg-slate-800 px-3 py-2 cursor-pointer hover:bg-slate-700 transition-colors"
                   >
-                    <p className="text-sm font-medium text-white">
+                    <p className="text-sm font-medium text-white group-hover:text-primary transition-colors">
                       {deal.title}
                     </p>
                     <div className="mt-1 flex items-center justify-between text-xs text-slate-400">
@@ -279,14 +373,66 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
                 {notes.map((note) => (
                   <div
                     key={note.id}
-                    className="rounded-lg bg-slate-800 px-3 py-2"
+                    className="group rounded-lg bg-slate-800 px-3 py-2 space-y-2"
                   >
-                    <p className="whitespace-pre-wrap text-xs text-slate-300">
-                      {note.note_text}
-                    </p>
-                    <p className="mt-1 text-[10px] text-slate-600">
-                      {format(new Date(note.created_at), "MMM d, yyyy HH:mm")}
-                    </p>
+                    {editingNoteId === note.id ? (
+                      <div className="space-y-1.5">
+                        <textarea
+                          value={editingNoteText}
+                          onChange={(e) => setEditingNoteText(e.target.value)}
+                          className="w-full resize-none rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-white outline-none focus:border-primary/50"
+                          rows={2}
+                        />
+                        <div className="flex justify-end gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setEditingNoteId(null)}
+                            className="text-slate-400 text-[10px] h-6 px-2 hover:bg-slate-700"
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            size="sm"
+                            disabled={!editingNoteText.trim() || updatingNote}
+                            onClick={() => handleUpdateNote(note.id)}
+                            className="bg-primary text-white text-[10px] h-6 px-2 hover:bg-primary/90"
+                          >
+                            Save
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="whitespace-pre-wrap text-xs text-slate-300">
+                          {note.note_text}
+                        </p>
+                        <div className="flex items-center justify-between mt-1">
+                          <p className="text-[10px] text-slate-500">
+                            {format(new Date(note.created_at), "MMM d, yyyy HH:mm")}
+                          </p>
+                          <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingNoteId(note.id);
+                                setEditingNoteText(note.note_text);
+                              }}
+                              className="text-slate-400 hover:text-white transition-colors"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteNote(note.id)}
+                              className="text-slate-400 hover:text-red-400 transition-colors"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
@@ -294,6 +440,19 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
           </div>
         </div>
       </ScrollArea>
+
+      {pipelines.length > 0 && (
+        <DealForm
+          open={dealFormOpen}
+          onOpenChange={setDealFormOpen}
+          deal={editingDeal}
+          pipelineId={pipelines[0].id}
+          stages={stages}
+          defaultStageId={stages[0]?.id}
+          defaultContactId={contact.id}
+          onSaved={fetchContactData}
+        />
+      )}
     </div>
   );
 }
