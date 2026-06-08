@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
-import type { Contact, Tag, ContactTag } from '@/types';
+import type { Contact, Tag, ContactTag, Country } from '@/types';
 import {
   Dialog,
   DialogContent,
@@ -44,6 +44,9 @@ export function ContactForm({
   const [company, setCompany] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const [countries, setCountries] = useState<Country[]>([]);
+  const [selectedCountryId, setSelectedCountryId] = useState('');
+
   const [tags, setTags] = useState<Tag[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [loadingTags, setLoadingTags] = useState(false);
@@ -55,7 +58,9 @@ export function ContactForm({
       setEmail(contact?.email ?? '');
       setCompany(contact?.company ?? '');
       setSelectedTagIds(contactTags.map((ct) => ct.tag_id));
+      setSelectedCountryId(contact?.country_id ?? '');
       fetchTags();
+      fetchCountries();
     }
   }, [open, contact]);
 
@@ -67,6 +72,14 @@ export function ContactForm({
       .order('name');
     if (data) setTags(data);
     setLoadingTags(false);
+  }
+
+  async function fetchCountries() {
+    const { data } = await supabase
+      .from('countries')
+      .select('*')
+      .order('name');
+    if (data) setCountries(data);
   }
 
   function toggleTag(tagId: string) {
@@ -94,30 +107,32 @@ export function ContactForm({
       const user = session?.user;
       if (!user) throw new Error('Not authenticated');
 
-      // Resolve country_id based on phone prefix
-      let countryId: string | null = null;
-      try {
-        const normalizedPhone = phone.trim().replace(/\D/g, '');
-        const { data: dbCountries } = await supabase
-          .from('countries')
-          .select('id, code')
-          .eq('account_id', accountId);
+      // Resolve country_id: prefer manually selected country, fallback to phone prefix
+      let countryId: string | null = selectedCountryId || null;
+      if (!countryId) {
+        try {
+          const normalizedPhone = phone.trim().replace(/\D/g, '');
+          const { data: dbCountries } = await supabase
+            .from('countries')
+            .select('id, code')
+            .eq('account_id', accountId);
 
-        if (dbCountries && dbCountries.length > 0) {
-          const sorted = dbCountries
-            .map((c: any) => ({ id: c.id, norm: c.code.replace(/\D/g, '') }))
-            .filter((c: any) => c.norm.length > 0)
-            .sort((a: any, b: any) => b.norm.length - a.norm.length);
+          if (dbCountries && dbCountries.length > 0) {
+            const sorted = dbCountries
+              .map((c: any) => ({ id: c.id, norm: c.code.replace(/\D/g, '') }))
+              .filter((c: any) => c.norm.length > 0)
+              .sort((a: any, b: any) => b.norm.length - a.norm.length);
 
-          for (const c of sorted) {
-            if (normalizedPhone.startsWith(c.norm)) {
-              countryId = c.id;
-              break;
+            for (const c of sorted) {
+              if (normalizedPhone.startsWith(c.norm)) {
+                countryId = c.id;
+                break;
+              }
             }
           }
+        } catch (err) {
+          console.error('Failed to resolve country_id:', err);
         }
-      } catch (err) {
-        console.error('Failed to resolve country_id:', err);
       }
 
       let contactId = contact?.id;
@@ -225,6 +240,25 @@ export function ContactForm({
             <p className="text-xs text-slate-500">
               Include country code, e.g. +1 for US
             </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="cf-country" className="text-slate-300">
+              Country
+            </Label>
+            <select
+              id="cf-country"
+              value={selectedCountryId}
+              onChange={(e) => setSelectedCountryId(e.target.value)}
+              className="h-9 w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer"
+            >
+              <option value="">Select a country (auto-detects if empty)</option>
+              {countries.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({c.code})
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-2">

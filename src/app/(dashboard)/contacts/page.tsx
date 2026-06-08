@@ -336,6 +336,7 @@ export default function ContactsPage() {
                   </TableHead>
                   <TableHead className="text-slate-400">Name</TableHead>
                   <TableHead className="text-slate-400">Phone</TableHead>
+                  <TableHead className="text-slate-400 hidden sm:table-cell">Country</TableHead>
                   <TableHead className="text-slate-400 hidden md:table-cell">Email</TableHead>
                   <TableHead className="text-slate-400 hidden lg:table-cell">Company</TableHead>
                   <TableHead className="text-slate-400 hidden md:table-cell">Tags</TableHead>
@@ -346,7 +347,7 @@ export default function ContactsPage() {
               <TableBody>
                 {contacts.length === 0 ? (
                   <TableRow className="border-slate-800">
-                    <TableCell colSpan={8} className="text-center py-12">
+                    <TableCell colSpan={9} className="text-center py-12">
                       <div className="flex flex-col items-center gap-2">
                         <Users className="size-8 text-slate-600" />
                         <p className="text-sm text-slate-500">
@@ -392,6 +393,9 @@ export default function ContactsPage() {
                       </TableCell>
                       <TableCell className="text-slate-300 font-mono text-xs">
                         {contact.phone}
+                      </TableCell>
+                      <TableCell className="text-slate-400 hidden sm:table-cell text-sm">
+                        {countries.find((c) => c.id === contact.country_id)?.name || <span className="text-slate-600">-</span>}
                       </TableCell>
                       <TableCell className="text-slate-400 hidden md:table-cell text-sm">
                         {contact.email || <span className="text-slate-600">-</span>}

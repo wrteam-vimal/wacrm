@@ -23,6 +23,8 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { DealForm } from "@/components/pipelines/deal-form";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Input } from "@/components/ui/input";
 
 interface ContactSidebarProps {
   contact: Contact | null;
@@ -47,6 +49,10 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
   const [stages, setStages] = useState<PipelineStage[]>([]);
   const [dealFormOpen, setDealFormOpen] = useState(false);
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
+
+  // Tags search and assignment states
+  const [allTags, setAllTags] = useState<Tag[]>([]);
+  const [tagSearchQuery, setTagSearchQuery] = useState("");
 
   const fetchContactData = useCallback(async () => {
     if (!contact) return;
@@ -112,6 +118,20 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
       }
     }
     loadPipelinesAndStages();
+  }, [accountId]);
+
+  // Load all available tags on mount/auth load
+  useEffect(() => {
+    if (!accountId) return;
+    async function loadAllTags() {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("tags")
+        .select("*")
+        .order("name");
+      if (data) setAllTags(data);
+    }
+    loadAllTags();
   }, [accountId]);
 
   const handleCopyPhone = useCallback(async () => {
@@ -189,6 +209,55 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
     }
   }, []);
 
+  const handleToggleTag = useCallback(async (tag: Tag) => {
+    if (!contact) return;
+    const supabase = createClient();
+    const existing = tags.find((t) => t.id === tag.id);
+
+    if (existing) {
+      // Remove tag
+      const { error } = await supabase
+        .from("contact_tags")
+        .delete()
+        .eq("contact_id", contact.id)
+        .eq("tag_id", tag.id);
+
+      if (!error) {
+        setTags((prev) => prev.filter((t) => t.id !== tag.id));
+        toast.success(`Removed tag: ${tag.name}`);
+      } else {
+        toast.error("Failed to remove tag");
+      }
+    } else {
+      // Add tag
+      const { data, error } = await supabase
+        .from("contact_tags")
+        .insert({
+          contact_id: contact.id,
+          tag_id: tag.id,
+        })
+        .select()
+        .single();
+
+      if (!error && data) {
+        setTags((prev) => [
+          ...prev,
+          {
+            ...tag,
+            contact_tag_id: data.id,
+          },
+        ]);
+        toast.success(`Added tag: ${tag.name}`);
+      } else {
+        toast.error("Failed to add tag");
+      }
+    }
+  }, [contact, tags]);
+
+  const filteredTags = allTags.filter((tag) =>
+    tag.name.toLowerCase().includes(tagSearchQuery.toLowerCase())
+  );
+
   if (!contact) {
     return (
       <div className="flex h-full w-70 items-center justify-center border-l border-slate-800 bg-slate-900">
@@ -253,9 +322,60 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
 
           {/* Tags */}
           <div>
-            <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-slate-500">
-              <TagIcon className="h-3 w-3" />
-              Tags
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-slate-500">
+                <TagIcon className="h-3 w-3" />
+                Tags
+              </div>
+              <Popover>
+                <PopoverTrigger
+                  className="text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  aria-label="Add tag"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </PopoverTrigger>
+                <PopoverContent className="w-56 p-1 bg-slate-900 border border-slate-800 rounded-lg shadow-md text-slate-200">
+                  <div className="p-2 border-b border-slate-800">
+                    <Input
+                      value={tagSearchQuery}
+                      onChange={(e) => setTagSearchQuery(e.target.value)}
+                      placeholder="Filter tags..."
+                      className="h-8 bg-slate-800 border-slate-700 text-xs placeholder-slate-500 text-white"
+                    />
+                  </div>
+                  <div className="max-h-48 overflow-y-auto p-1 space-y-0.5">
+                    {filteredTags.length === 0 ? (
+                      <p className="text-xs text-slate-500 p-3 text-center">
+                        No tags found
+                      </p>
+                    ) : (
+                      filteredTags.map((tag) => {
+                        const isAssigned = tags.some((t) => t.id === tag.id);
+                        return (
+                          <button
+                            key={tag.id}
+                            type="button"
+                            onClick={() => handleToggleTag(tag)}
+                            className={cn(
+                              "w-full flex items-center justify-between px-2 py-1.5 rounded-md text-xs text-left transition-colors cursor-pointer",
+                              "hover:bg-slate-800 text-slate-300 hover:text-white"
+                            )}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span
+                                className="h-2.5 w-2.5 rounded-full shrink-0"
+                                style={{ backgroundColor: tag.color }}
+                              />
+                              <span className="truncate">{tag.name}</span>
+                            </div>
+                            {isAssigned && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="mt-2 flex flex-wrap gap-1">
               {tags.length === 0 ? (
