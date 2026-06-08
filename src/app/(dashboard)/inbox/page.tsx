@@ -12,6 +12,40 @@ import { toast } from "sonner";
 import { WifiOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+function playNotificationSound() {
+  if (typeof window === "undefined") return;
+  try {
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+
+    osc1.type = "sine";
+    osc1.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+    osc1.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.12); // A5
+
+    osc2.type = "sine";
+    osc2.frequency.setValueAtTime(880, ctx.currentTime); // A5
+    osc2.frequency.exponentialRampToValueAtTime(1174.66, ctx.currentTime + 0.12); // D6
+
+    gainNode.gain.setValueAtTime(0.12, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+
+    osc1.connect(gainNode);
+    osc2.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    osc1.start();
+    osc2.start();
+    osc1.stop(ctx.currentTime + 0.25);
+    osc2.stop(ctx.currentTime + 0.25);
+  } catch (e) {
+    console.warn("Failed to play notification sound:", e);
+  }
+}
+
 export default function InboxPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -68,6 +102,27 @@ export default function InboxPage() {
     for (const c of conversations) next.add(c.id);
     knownConvIdsRef.current = next;
   }, [conversations]);
+
+  const activeConversationRef = useRef<Conversation | null>(null);
+  useEffect(() => {
+    activeConversationRef.current = activeConversation;
+  }, [activeConversation]);
+
+  const conversationsRef = useRef<Conversation[]>([]);
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
+
+  const handleSelectConversationRef = useRef<(conv: Conversation) => void>(() => {});
+
+  // Request browser notification permission on mount
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      if (Notification.permission === "default") {
+        Notification.requestPermission();
+      }
+    }
+  }, []);
 
   // Pull the conversation row with its `contact` joined and merge it
   // into state. Needed because Supabase Realtime payloads only carry the
@@ -167,6 +222,40 @@ export default function InboxPage() {
       const newMsg = event.new;
 
       if (event.eventType === "INSERT") {
+        // Play notification sound and show browser desktop notification for new incoming customer messages
+        if (newMsg.sender_type === "customer") {
+          playNotificationSound();
+
+          if (
+            typeof window !== "undefined" &&
+            "Notification" in window &&
+            Notification.permission === "granted"
+          ) {
+            const conv = conversationsRef.current.find((c) => c.id === newMsg.conversation_id);
+            const senderName = conv?.contact?.name || conv?.contact?.phone || "Customer";
+            
+            const isWindowHidden = document.visibilityState === "hidden";
+            const isDifferentConv = !activeConversationRef.current || activeConversationRef.current.id !== newMsg.conversation_id;
+
+            if (isWindowHidden || isDifferentConv) {
+              const bodyText = newMsg.content_text || 
+                (newMsg.content_type ? `Sent an attachment (${newMsg.content_type})` : "Sent a message");
+              
+              const notification = new Notification(`New message from ${senderName}`, {
+                body: bodyText,
+                icon: "/favicon.ico",
+              });
+
+              notification.onclick = () => {
+                window.focus();
+                if (conv) {
+                  handleSelectConversationRef.current(conv);
+                }
+              };
+            }
+          }
+        }
+
         // Add to messages if it belongs to active conversation
         if (
           activeConversation &&
@@ -436,6 +525,10 @@ export default function InboxPage() {
     },
     [activeConversation?.id, router]
   );
+
+  useEffect(() => {
+    handleSelectConversationRef.current = handleSelectConversation;
+  }, [handleSelectConversation]);
 
   // Mobile "back" — deselect the conversation so the list pane comes
   // back. Also clears the ?c= param so a refresh lands on the list

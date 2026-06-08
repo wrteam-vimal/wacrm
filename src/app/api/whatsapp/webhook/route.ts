@@ -724,6 +724,7 @@ async function processMessage(
 
   const { error: msgError } = await supabaseAdmin().from('messages').insert({
     conversation_id: conversation.id,
+    account_id: accountId,
     sender_type: 'customer',
     content_type: contentType,
     content_text: contentText,
