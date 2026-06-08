@@ -73,6 +73,10 @@ export function MessageComposer({
   const [uploading, setUploading] = useState(false);
   const [pendingAttachment, setPendingAttachment] = useState<PendingAttachment | null>(null);
 
+  // Drag and drop states
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounter = useRef(0);
+
   // Fetch quick messages on mount
   useEffect(() => {
     async function loadQuickMessages() {
@@ -215,10 +219,18 @@ export function MessageComposer({
     }, 0);
   }, [adjustHeight]);
 
-  const handleFileUpload = async (file: File, type: 'image' | 'video' | 'document') => {
+  const handleFileUpload = async (file: File) => {
     if (file.size > 16 * 1024 * 1024) {
       toast.error(`File is ${(file.size / 1024 / 1024).toFixed(1)} MB — limit is 16 MB.`);
       return;
+    }
+
+    // Auto-detect type based on mime-type
+    let type: 'image' | 'video' | 'document' = 'document';
+    if (file.type.startsWith("image/")) {
+      type = 'image';
+    } else if (file.type.startsWith("video/")) {
+      type = 'video';
     }
     
     setUploading(true);
@@ -272,31 +284,107 @@ export function MessageComposer({
     }
   };
 
+  const handleOverlayDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleOverlayDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleOverlayDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    if (uploading) return;
+
+    if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      handleFileUpload(file);
+    }
+  };
+
+  // Global Drag and Drop handlers
+  useEffect(() => {
+    if (readOnly || sessionExpired) return;
+
+    const onDragEnter = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      if (e.dataTransfer) {
+        const types = Array.from(e.dataTransfer.types || []);
+        const hasFiles = types.includes("Files");
+        if (hasFiles) {
+          setIsDragging(true);
+        }
+      }
+    };
+
+    const onDragOver = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    window.addEventListener("dragenter", onDragEnter);
+    window.addEventListener("dragover", onDragOver);
+
+    return () => {
+      window.removeEventListener("dragenter", onDragEnter);
+      window.removeEventListener("dragover", onDragOver);
+    };
+  }, [readOnly, sessionExpired]);
+
   return (
     <div className="relative border-t border-slate-800 bg-slate-900 p-3 select-none">
+      {/* Drag overlay */}
+      {isDragging && !readOnly && !sessionExpired && (
+        <div 
+          onDragOver={handleOverlayDragOver}
+          onDragLeave={handleOverlayDragLeave}
+          onDrop={handleOverlayDrop}
+          className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-sm border-4 border-dashed border-primary/60 m-4 rounded-2xl animate-in fade-in zoom-in-95 duration-200"
+        >
+          <div className="flex flex-col items-center gap-4 text-center p-6 max-w-sm rounded-2xl bg-slate-900/95 border border-slate-800 shadow-2xl pointer-events-none">
+            <div className="p-4 bg-primary/20 rounded-2xl text-primary animate-bounce">
+              <Paperclip className="h-8 w-8" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-lg font-bold text-white">Drop files to attach</h3>
+              <p className="text-sm text-slate-400">
+                You can drop any images, videos, or documents here to attach them to your message.
+              </p>
+            </div>
+            <div className="text-[11px] text-slate-500 font-mono">
+              Max file size: 16 MB
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Hidden file inputs */}
       <input
         ref={fileInputRef}
         type="file"
-        accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain"
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
-          if (file) handleFileUpload(file, "document");
+          if (file) handleFileUpload(file);
           e.target.value = "";
         }}
       />
       <input
         ref={mediaInputRef}
         type="file"
-        accept="image/png,image/jpeg,image/webp,video/mp4,video/3gpp"
+        accept="image/*,video/*"
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
-          if (file) {
-            const isVideo = file.type.startsWith("video/");
-            handleFileUpload(file, isVideo ? "video" : "image");
-          }
+          if (file) handleFileUpload(file);
           e.target.value = "";
         }}
       />

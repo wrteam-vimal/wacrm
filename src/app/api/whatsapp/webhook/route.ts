@@ -1278,6 +1278,8 @@ async function findOrCreateContact(
     return null
   }
 
+  console.info(`[webhook] Received message from a new number not in contact list: ${phone} (${name || 'No Name'})`)
+
   return { contact: newContact, wasCreated: true }
 }
 
